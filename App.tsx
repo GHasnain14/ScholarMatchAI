@@ -6,6 +6,7 @@ import { Spinner } from './components/Spinner';
 import { ScholarshipCard } from './components/ScholarshipCard';
 import { CvSummaryCard } from './components/CvSummaryCard';
 import { ApplicationTracker } from './components/ApplicationTracker';
+import { WatermarkRemover } from './components/WatermarkRemover';
 import { 
     findPositions, 
     findPositionsInKorea, 
@@ -44,7 +45,8 @@ import {
     BarChart2,
     RefreshCw,
     Filter,
-    Flame
+    Flame,
+    ShieldCheck
 } from 'lucide-react';
 import { exportAllDocumentsDossierToPdf } from './utils/pdfExport';
 import confetti from 'canvas-confetti';
@@ -116,12 +118,32 @@ const App: React.FC = () => {
     const [positionDetails, setPositionDetails] = useState<string>('');
     const [draftFeedback, setDraftFeedback] = useState<string>('');
     const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
+    const [watermarkInitialText, setWatermarkInitialText] = useState<string>('');
 
     // Search and Filtering State
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [selectedTierFilter, setSelectedTierFilter] = useState<string>('all');
     const [minMatchScore, setMinMatchScore] = useState<number>(75);
     const [onlyBookmarked, setOnlyBookmarked] = useState<boolean>(false);
+
+    const handleNavigateToWatermarkCleaner = useCallback((initialText?: string) => {
+        if (initialText) {
+            setWatermarkInitialText(initialText);
+        }
+        setActiveTab(Tab.WatermarkRemover);
+    }, []);
+
+    const handleSendCleanedToDocumentStudio = useCallback((text: string) => {
+        const docToUpdate = activeGeneratedDoc || DocumentType.StatementOfPurpose;
+        setGeneratedDocuments(prev => ({
+            ...prev,
+            [docToUpdate]: text,
+        }));
+        if (!activeGeneratedDoc) {
+            setActiveGeneratedDoc(docToUpdate);
+        }
+        setActiveTab(Tab.DraftDocuments);
+    }, [activeGeneratedDoc]);
 
     // Save to local storage on changes
     useEffect(() => {
@@ -168,6 +190,10 @@ const App: React.FC = () => {
         setActiveGeneratedDoc(null);
         setError(null);
         generateSummaryForCv(text);
+    };
+
+    const handleUpdateCvFromCleaner = (newCvText: string) => {
+        handleCvUpload(newCvText);
     };
 
     const handleRegenerateSummary = () => {
@@ -593,6 +619,7 @@ const App: React.FC = () => {
                     <CVUploader 
                         onCvUpload={handleCvUpload} 
                         currentCvText={cvText}
+                        onCleanWatermarks={handleNavigateToWatermarkCleaner}
                     />
 
                     {/* Writing Level & Tone Selector */}
@@ -934,6 +961,7 @@ const App: React.FC = () => {
                                             docType={activeGeneratedDoc}
                                             positionDetails={positionDetails}
                                             tone={selectedTone}
+                                            onCleanWatermarks={handleNavigateToWatermarkCleaner}
                                         />
                                     )}
 
@@ -965,7 +993,17 @@ const App: React.FC = () => {
                         </div>
                     )}
 
-                    {/* TAB 4: APPLICATION TRACKER / KANBAN */}
+                    {/* TAB 4: AI WATERMARK REMOVER & HUMANIZER */}
+                    {activeTab === Tab.WatermarkRemover && (
+                        <WatermarkRemover 
+                            initialText={watermarkInitialText}
+                            currentCvText={cvText}
+                            onSendToDocumentStudio={handleSendCleanedToDocumentStudio}
+                            onUpdateCvText={handleUpdateCvFromCleaner}
+                        />
+                    )}
+
+                    {/* TAB 5: APPLICATION TRACKER / KANBAN */}
                     {activeTab === Tab.ApplicationTracker && (
                         <ApplicationTracker 
                             scholarships={scholarships}
@@ -977,7 +1015,7 @@ const App: React.FC = () => {
                         />
                     )}
 
-                    {/* TAB 5: DEADLINES */}
+                    {/* TAB 6: DEADLINES */}
                     {activeTab === Tab.Deadlines && (
                         <div className="space-y-6">
                             <div className="flex items-center justify-between flex-wrap gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">

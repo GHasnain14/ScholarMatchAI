@@ -22,6 +22,84 @@ export interface Scholarship {
     notes?: string;
 }
 
+export interface MasterProgram {
+    id?: string;
+    programTitle: string; // e.g. "M.Sc. in Data Engineering and Analytics"
+    degreeType: string; // e.g. "M.Sc.", "M.Eng.", "M.Res.", "Joint M.Sc."
+    universityName: string; // e.g. "Technical University of Munich (TUM)"
+    department: string; // e.g. "Department of Informatics & Computer Engineering"
+    country: string; // e.g. "Germany"
+    city?: string; // e.g. "Munich / Garching"
+    ranking: {
+        qsRank?: string; // e.g. "QS World #28"
+        theRank?: string; // e.g. "THE #30"
+        nationalRank?: string; // e.g. "German Excellence University / #1 in Germany for CS"
+    };
+    applicationWay: {
+        portalName: string; // e.g. "Uni-Assist (VPD) + TUMonline"
+        portalType: 'Uni-Assist' | 'Direct University Portal' | 'Campus France' | 'DAAD Portal' | 'StudyLink' | 'Central Service' | string;
+        applicationUrl: string;
+        keySteps: string[];
+    };
+    languageOfInstruction: string; // e.g. "100% English"
+    languageRequirements: string; // e.g. "IELTS 6.5+ or TOEFL 88+"
+    durationAndCredits: string; // e.g. "2 Years (4 Semesters) / 120 ECTS"
+    tuitionAndFees: {
+        isTuitionFree: boolean;
+        tuitionText: string; // e.g. "Tuition-Free (Administrative fee ~€152/semester)"
+        livingCostEstimate?: string; // e.g. "€934/month Blocked Account (Sperrkonto)"
+    };
+    curriculumHighlights: {
+        coreModules: string[]; // e.g. ["Distributed Systems", "Advanced Machine Learning", "Cloud Computing Architectures"]
+        electivesAndTracks: string[]; // e.g. ["Deep Generative Models", "Big Data Analytics", "High Performance Computing"]
+        masterThesisDetails: string; // e.g. "6-month research thesis with university lab or Max Planck Institute"
+        departmentWebsiteUrl?: string;
+    };
+    admissionPrerequisites: {
+        bachelorDegreeRequired: string; // e.g. "Bachelor's in Computer Science, Software Engineering, or related"
+        minEctsCredits?: string; // e.g. "Min. 18 ECTS Mathematics, 24 ECTS Theoretical CS"
+        greGmatRequirement?: string; // e.g. "Not required for EU; GRE Q164+ recommended for non-EU"
+        gpaRecommendation?: string; // e.g. "German grade 2.5 or better (approx. 3.0/4.0 GPA)"
+    };
+    deadlines: {
+        winterSemester?: string; // e.g. "May 31 (Winter Intake)"
+        summerSemester?: string; // e.g. "Nov 30 (Summer Intake)"
+        isUpcoming?: boolean;
+    };
+    matchScore: number; // 70-99
+    matchRationale: string; // Detailed alignment between candidate's CV courses/skills and the curriculum
+    curriculumOverlapKeywords: string[]; // e.g. ["Python", "Neural Networks", "Distributed Computing"]
+    officialProgramUrl: string;
+
+    // Client tracking
+    bookmarked?: boolean;
+    stage?: 'Discovered' | 'Drafting SOP' | 'Documents Ready' | 'Uni-Assist / Portal Submitted' | 'Admitted';
+    notes?: string;
+}
+
+export interface CurriculumMotivationLetterRequest {
+    cvText: string;
+    program: MasterProgram;
+    tone?: string;
+    englishLevel?: number;
+    specificFocusArea?: string;
+}
+
+export interface CurriculumMotivationLetterResponse {
+    motivationLetter: string;
+    matchedModulesAnalysis: {
+        targetModule: string;
+        candidateBackgroundMatch: string;
+    }[];
+    facultyChairsToMention: string[];
+    admissionReadinessChecklist: {
+        category: string;
+        status: 'ready' | 'action_needed' | 'verified';
+        detail: string;
+    }[];
+    uniAssistOrPortalGuide: string;
+}
+
 export interface CvAnalysis {
     summary: string;
     strengths: string[];
@@ -44,10 +122,31 @@ export enum DocumentType {
 
 export enum Tab {
     FindPositions = "find-positions",
-    DraftDocuments = "draft-documents",
-    Deadlines = "deadlines",
-    ApplicationTracker = "application-tracker",
+    MasterPrograms = "master-programs",
     CvInsights = "cv-insights",
+    WatermarkRemover = "watermark-remover",
+    DraftDocuments = "draft-documents",
+    ApplicationTracker = "application-tracker",
+    Deadlines = "deadlines",
+}
+
+export type WatermarkCleaningMode = 'stealth-clean' | 'academic-humanize' | 'executive-polish' | 'concise-scholarly';
+
+export interface WatermarkScanResult {
+    cleanedText: string;
+    originalText: string;
+    hiddenWatermarksFound: number;
+    hiddenWatermarkTypes: string[];
+    aiClichesFound: { phrase: string; suggestion: string; index: number }[];
+    aiProbabilityOriginal: number;
+    aiProbabilityCleaned: number;
+    readabilityGrade: string;
+    burstinessScoreOriginal: number;
+    burstinessScoreCleaned: number;
+    perplexityScore: number;
+    removedCount: number;
+    wordCount: number;
+    modeUsed: WatermarkCleaningMode;
 }
 
 export enum PositionSearchType {

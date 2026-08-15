@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { UploadCloud, FileText, Sparkles, CheckCircle2, AlertCircle, Edit3, X, FileCheck, ArrowRight } from 'lucide-react';
+import { UploadCloud, FileText, Sparkles, CheckCircle2, AlertCircle, Edit3, X, FileCheck, ArrowRight, ShieldCheck } from 'lucide-react';
 
 const SAMPLE_CVS = [
     {
@@ -84,9 +84,10 @@ const getMammoth = (): any => {
 interface CVUploaderProps {
     onCvUpload: (text: string) => void;
     currentCvText?: string;
+    onCleanWatermarks?: (text: string) => void;
 }
 
-export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvText }) => {
+export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvText, onCleanWatermarks }) => {
     const [fileName, setFileName] = useState<string>('');
     const [isPasting, setIsPasting] = useState<boolean>(false);
     const [pastedText, setPastedText] = useState<string>(currentCvText || '');
@@ -221,6 +222,16 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {onCleanWatermarks && currentCvText && (
+                            <button
+                                type="button"
+                                onClick={() => onCleanWatermarks(currentCvText)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-950/60 bg-cyan-50 dark:bg-cyan-950/40 rounded-lg border border-cyan-200 dark:border-cyan-800 transition-colors shadow-2xs"
+                                title="Scan and purge hidden zero-width watermarks from this CV"
+                            >
+                                <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" /> Clean AI Watermarks
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={() => { setIsPasting(true); setPastedText(currentCvText || ''); }}

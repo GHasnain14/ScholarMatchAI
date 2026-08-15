@@ -1067,6 +1067,93 @@ ${positionDetails}`;
         }
     });
 
+    // Remove AI Watermarks & Humanize Academic Text Endpoint
+    app.post("/api/humanize-clean-text", async (req: Request, res: Response) => {
+        try {
+            const { text, mode = "academic-humanize", preserveCitations = true } = req.body;
+
+            if (!text || typeof text !== "string") {
+                return res.status(400).json({ error: "No text provided to clean." });
+            }
+
+            // Step 1: Immediate invisible Unicode zero-width stripping
+            let preCleaned = text
+                .replace(/[\u200B-\u200D\uFEFF\u2060-\u2064\u00AD\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
+                .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ")
+                .replace(/[\u2018\u2019]/g, "'")
+                .replace(/[\u201C\u201D]/g, '"')
+                .replace(/\u2013/g, "-")
+                .replace(/\u2014/g, " -- ")
+                .replace(/^(?:certainly!?|sure!?|absolutely!?|here\s+is\s+(?:a|the|your)\s+[^:.]+[:.]?)\s*/i, "")
+                .replace(/^(?:as\s+an\s+ai(?:\s+language\s+model)?,\s*[^:.]+[:.]?)\s*/i, "");
+
+            if (mode === "stealth-clean") {
+                return res.json({
+                    cleanedText: preCleaned.trim(),
+                    modeUsed: mode,
+                });
+            }
+
+            // Step 2: Deep Humanization with LLM or algorithmic fallback
+            const humanizePrompt = `You are an elite academic editor and human writing stylist. 
+Your task is to thoroughly REMOVE all AI watermarks, robotic clichés, and synthetic language patterns from the text below, transforming it into authentic, natural, human-authored academic prose.
+
+CRITICAL INSTRUCTIONS:
+1. STRICTLY ELIMINATE all robotic AI clichés and transition markers:
+   - "In today's fast-paced/rapidly evolving world", "It is worth noting that", "It is important to remember", "Delve into", "A testament to", "Tapestry of", "Beacon of", "Foster a deep understanding", "Furthermore, it is imperative", "Plays a pivotal role in", "Embark on a journey", "Navigating the complexities of", "Holistic approach", "Unleash the potential", "Seamlessly integrate", "Paramount importance", "Catalyst for change", "Spearheading", "In conclusion".
+2. INJECT NATURAL HUMAN BURSTINESS & PERPLEXITY:
+   - Vary sentence lengths dynamically (mix concise 5-10 word statements with articulate, compound scholarly sentences).
+   - Use active voice, direct assertions, and authentic scholarly cadence.
+3. PRESERVE 100% FACTUAL ACCURACY:
+   - Retain all technical terms, names, dates, professor/university names, methodologies, and citations exactly as given.
+4. ABSOLUTELY NO CONVERSATIONAL FILLER OR INTRO/OUTRO:
+   - Output ONLY the clean, humanized academic text. No quotes, no markdown greetings, no explanations.
+
+${preserveCitations ? "Preserve all formal academic citations and references intact.\n" : ""}
+MODE: ${mode}
+
+---TEXT TO HUMANIZE---
+${preCleaned}`;
+
+            try {
+                const response = await generateContentWithRetry({
+                    contents: humanizePrompt,
+                    config: {
+                        temperature: 0.6,
+                    },
+                });
+
+                if (response?.text && response.text.trim().length > 0) {
+                    let cleanedOutput = response.text
+                        .replace(/[\u200B-\u200D\uFEFF\u2060-\u2064\u00AD\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
+                        .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ")
+                        .trim();
+
+                    // Strip any accidental markdown formatting if it's plain text
+                    if (cleanedOutput.startsWith("```") && cleanedOutput.endsWith("```")) {
+                        cleanedOutput = cleanedOutput.replace(/^```[a-z]*\n?/i, "").replace(/```$/, "").trim();
+                    }
+
+                    return res.json({
+                        cleanedText: cleanedOutput,
+                        modeUsed: mode,
+                    });
+                }
+            } catch (aiErr) {
+                console.warn("Live Gemini humanizer saturated; using algorithmic academic cleaner:", aiErr);
+            }
+
+            // Algorithmic Fallback
+            return res.json({
+                cleanedText: preCleaned.trim(),
+                modeUsed: mode,
+            });
+        } catch (error: any) {
+            console.error("Error in /api/humanize-clean-text:", error);
+            return res.status(500).json({ error: "Failed to process text. Please try again." });
+        }
+    });
+
     // Vite middleware for development vs static build in production
     if (process.env.NODE_ENV !== "production") {
         const vite = await createViteServer({

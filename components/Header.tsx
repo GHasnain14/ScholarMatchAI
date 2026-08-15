@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, GraduationCap, Compass, FileEdit, Calendar, BookmarkCheck, BarChart2 } from 'lucide-react';
+import { Sparkles, GraduationCap, Compass, FileEdit, Calendar, BookmarkCheck, BarChart2, ShieldCheck } from 'lucide-react';
 import { Tab } from '../types';
 
 interface HeaderProps {
@@ -33,6 +33,15 @@ export const Header: React.FC<HeaderProps> = ({
             icon: BarChart2,
             color: 'from-emerald-500 to-teal-600',
             activeColor: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+        },
+        {
+            id: Tab.WatermarkRemover,
+            label: 'AI Watermark Remover',
+            icon: ShieldCheck,
+            color: 'from-cyan-500 to-blue-600',
+            badge: 'NEW',
+            badgeColor: 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white',
+            activeColor: 'bg-cyan-50 text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800',
         },
         {
             id: Tab.DraftDocuments,

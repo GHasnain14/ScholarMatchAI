@@ -189,3 +189,33 @@ export const draftDocument = async (
     const data = await response.json();
     return data.content || '';
 };
+
+/**
+ * Call the backend server endpoint to clean AI watermarks and humanize academic text
+ */
+export const cleanAndHumanizeText = async (params: {
+    text: string;
+    mode?: 'stealth-clean' | 'academic-humanize' | 'executive-polish' | 'concise-scholarly';
+    preserveCitations?: boolean;
+}): Promise<string> => {
+    const { text, mode = 'academic-humanize', preserveCitations = true } = params;
+
+    const response = await fetch('/api/humanize-clean-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            text,
+            mode,
+            preserveCitations,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error (${response.status}): Failed to clean text.`);
+    }
+
+    const data = await response.json();
+    return data.cleanedText || '';
+};
+

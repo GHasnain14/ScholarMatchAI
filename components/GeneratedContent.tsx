@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, Download, Printer, Sparkles, FileText, CheckCircle2 } from 'lucide-react';
+import { Copy, Check, Download, Printer, Sparkles, FileText, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { exportDocumentToPdf } from '../utils/pdfExport';
 import { DocumentType } from '../types';
 
@@ -8,6 +8,7 @@ interface GeneratedContentProps {
     docType?: DocumentType | string;
     positionDetails?: string;
     tone?: string;
+    onCleanWatermarks?: (text: string) => void;
 }
 
 export const GeneratedContent: React.FC<GeneratedContentProps> = ({
@@ -15,6 +16,7 @@ export const GeneratedContent: React.FC<GeneratedContentProps> = ({
     docType = 'Academic Application Document',
     positionDetails = '',
     tone = 'Formal & Academic',
+    onCleanWatermarks,
 }) => {
     const [copied, setCopied] = useState<boolean>(false);
     const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -84,6 +86,18 @@ export const GeneratedContent: React.FC<GeneratedContentProps> = ({
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 flex-wrap">
+                    {onCleanWatermarks && (
+                        <button
+                            type="button"
+                            onClick={() => onCleanWatermarks(content)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-cyan-300 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 transition-all shadow-2xs"
+                            title="Remove AI watermarks, zero-width spaces, and clichés from this draft"
+                        >
+                            <ShieldCheck className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+                            <span>Clean AI Watermarks</span>
+                        </button>
+                    )}
+
                     <button
                         type="button"
                         onClick={handleCopy}
