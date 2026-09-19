@@ -7,6 +7,7 @@ import { ScholarshipCard } from './components/ScholarshipCard';
 import { CvSummaryCard } from './components/CvSummaryCard';
 import { ApplicationTracker } from './components/ApplicationTracker';
 import { WatermarkRemover } from './components/WatermarkRemover';
+import { MasterProgramsExplorer } from './components/MasterProgramsExplorer';
 import { 
     findPositions, 
     findPositionsInKorea, 
@@ -688,9 +689,53 @@ const App: React.FC = () => {
                         </div>
                     )}
 
+                    {/* TAB: MASTER'S DEGREE & CURRICULUM EXPLORER */}
+                    {activeTab === Tab.MasterPrograms && (
+                        <MasterProgramsExplorer
+                            cvText={cvText}
+                            onNavigateToTab={(tab) => setActiveTab(tab as Tab)}
+                            onSendToWatermarkRemover={(text) => {
+                                handleNavigateToWatermarkCleaner(text);
+                            }}
+                            onSendToDocumentStudio={(text, title) => {
+                                setPositionDetails(title || 'Target Master Program');
+                                setGeneratedDocuments((prev) => ({
+                                    ...prev,
+                                    [DocumentType.MotivationLetter]: text,
+                                }));
+                                setActiveGeneratedDoc(DocumentType.MotivationLetter);
+                                setActiveTab(Tab.DraftDocuments);
+                            }}
+                        />
+                    )}
+
                     {/* TAB 1: FIND POSITIONS */}
                     {activeTab === Tab.FindPositions && (
                         <div className="space-y-8">
+                            {/* Callout Banner to Master's Programs */}
+                            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 border border-blue-500/30">
+                                <div className="space-y-1 text-center sm:text-left">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-[11px] font-black uppercase tracking-wider">
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                        NEW: Master's Degree Engine
+                                    </div>
+                                    <h4 className="text-base sm:text-lg font-black tracking-tight">
+                                        Looking for Master's Programs in Germany & Worldwide?
+                                    </h4>
+                                    <p className="text-xs text-blue-100 max-w-xl leading-relaxed">
+                                        Browse accredited universities by country, inspect official department curricula, Uni-Assist / VPD steps, tuition-free rankings, and craft tailored Motivation Letters.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab(Tab.MasterPrograms)}
+                                    className="px-4 py-2.5 rounded-xl bg-white text-indigo-900 hover:bg-blue-50 font-black text-xs shrink-0 shadow-md transition-all flex items-center gap-1.5 cursor-pointer transform hover:-translate-y-0.5"
+                                >
+                                    <span>Explore Master's Programs</span>
+                                    <ArrowRight className="w-4 h-4" />
+                                </button>
+                            </div>
+
                             {/* CV Review Banner Card */}
                             <CvSummaryCard
                                 analysis={cvAnalysis}

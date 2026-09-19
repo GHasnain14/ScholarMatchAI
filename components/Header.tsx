@@ -21,6 +21,15 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
     const navItems = [
         {
+            id: Tab.MasterPrograms,
+            label: "Master's Programs",
+            icon: GraduationCap,
+            color: 'from-blue-600 to-violet-600',
+            badge: 'NEW',
+            badgeColor: 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white',
+            activeColor: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
+        },
+        {
             id: Tab.FindPositions,
             label: 'Find Opportunities',
             icon: Compass,

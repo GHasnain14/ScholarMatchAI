@@ -1,6 +1,6 @@
 {
   "name": "Academic Application Assistant",
-  "description": "An AI-powered assistant to help students find scholarships, remove AI watermarks & humanize text, and draft application documents tailored to their CV and target professors or universities.",
+  "description": "An AI-powered assistant to search Master's programs and scholarships by country, match CVs with university curricula, craft tailored motivation letters, and remove AI watermarks.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

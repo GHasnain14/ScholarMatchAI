@@ -1,4 +1,11 @@
-import { Scholarship, DocumentType, CvAnalysis } from '../types';
+import {
+    Scholarship,
+    DocumentType,
+    CvAnalysis,
+    MasterProgram,
+    CurriculumMotivationLetterRequest,
+    CurriculumMotivationLetterResponse
+} from '../types';
 
 /**
  * Call the backend server endpoint to analyze candidate CV
@@ -218,4 +225,56 @@ export const cleanAndHumanizeText = async (params: {
     const data = await response.json();
     return data.cleanedText || '';
 };
+
+/**
+ * Call the backend server endpoint to search for Master's programs matching CV and country
+ */
+export const findMasterPrograms = async (
+    cvText: string,
+    country: string = 'Germany',
+    prompt?: string
+): Promise<MasterProgram[]> => {
+    const response = await fetch('/api/find-master-programs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            cvText,
+            country,
+            prompt,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error (${response.status}): Failed to find Master's programs.`);
+    }
+
+    const data = await response.json();
+    const programs: MasterProgram[] = Array.isArray(data.programs) ? data.programs : [];
+    return programs.map((p, idx) => ({
+        ...p,
+        id: p.id || `program-${Date.now()}-${idx}`,
+    }));
+};
+
+/**
+ * Call the backend server endpoint to craft curriculum-matched motivation letter and admission suite
+ */
+export const craftCurriculumMotivationLetter = async (
+    request: CurriculumMotivationLetterRequest
+): Promise<CurriculumMotivationLetterResponse> => {
+    const response = await fetch('/api/craft-curriculum-motivation-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error (${response.status}): Failed to craft curriculum motivation letter.`);
+    }
+
+    return response.json();
+};
+
 
