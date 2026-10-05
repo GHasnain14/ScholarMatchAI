@@ -16,9 +16,11 @@ import {
     GraduationCap, 
     Clock, 
     CheckCircle,
-    Check
+    Check,
+    Bell
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { calculateDaysRemaining } from '../services/deadlineNotificationService';
 
 interface ScholarshipCardProps {
     scholarship: Scholarship;
@@ -144,12 +146,20 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
 
     const countryInfo = scholarship.country ? countryFlags[scholarship.country] || { flag: '🌐', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' } : null;
 
-    const isDeadlineSoon = scholarship.deadline &&
-        new Date(scholarship.deadline).getTime() - new Date().getTime() < 7 * 24 * 60 * 60 * 1000 &&
-        new Date(scholarship.deadline).getTime() >= new Date().getTime();
+    const daysRemaining = calculateDaysRemaining(scholarship.deadline);
+    const isThreeDaysRemaining = daysRemaining === 3;
+    const isCriticalDeadline = daysRemaining !== null && daysRemaining <= 3 && daysRemaining >= 0;
+    const isDeadlinePassed = daysRemaining !== null && daysRemaining < 0;
+    const isDeadlineSoon = daysRemaining !== null && daysRemaining <= 7 && daysRemaining >= 0;
 
-    const isDeadlinePassed = scholarship.deadline &&
-        new Date(scholarship.deadline).getTime() < new Date().getTime();
+    const handleSetThreeDaysFromNow = () => {
+        const target = new Date();
+        target.setDate(target.getDate() + 3);
+        const yyyy = target.getFullYear();
+        const mm = String(target.getMonth() + 1).padStart(2, '0');
+        const dd = String(target.getDate()).padStart(2, '0');
+        onUpdateDeadline(`${yyyy}-${mm}-${dd}`);
+    };
 
     return (
         <div 
@@ -314,26 +324,54 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                 </div>
 
                 {/* Deadline Selector */}
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-750 border border-slate-200/80 dark:border-slate-700">
+                <div className={`flex items-center justify-between p-2.5 rounded-xl border transition-colors ${
+                    isThreeDaysRemaining
+                        ? 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700/80 ring-1 ring-amber-400/50'
+                        : isCriticalDeadline
+                        ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700/80'
+                        : 'bg-slate-50 dark:bg-slate-750 border-slate-200/80 dark:border-slate-700'
+                }`}>
                     <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-slate-400" />
+                        {isThreeDaysRemaining ? (
+                            <Bell className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-bounce shrink-0" />
+                        ) : (
+                            <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                        )}
                         <div>
-                            <span className="text-[10px] font-bold text-slate-400 block uppercase">
-                                Deadline
+                            <span className="text-[10px] font-bold text-slate-400 block uppercase flex items-center gap-1">
+                                Deadline {isThreeDaysRemaining && <span className="text-amber-600 font-extrabold">• 3-Day Alert Active</span>}
                             </span>
                             {isEditingDeadline ? (
-                                <input
-                                    type="date"
-                                    value={scholarship.deadline || ''}
-                                    onChange={(e) => onUpdateDeadline(e.target.value)}
-                                    className="text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md px-2 py-0.5 focus:ring-1 focus:ring-blue-500"
-                                />
+                                <div className="flex items-center gap-1 mt-0.5">
+                                    <input
+                                        type="date"
+                                        value={scholarship.deadline || ''}
+                                        onChange={(e) => onUpdateDeadline(e.target.value)}
+                                        className="text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md px-2 py-0.5 focus:ring-1 focus:ring-blue-500"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleSetThreeDaysFromNow}
+                                        className="text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded border border-amber-300"
+                                        title="Quickly set deadline to exactly 3 days from today"
+                                    >
+                                        +3 Days
+                                    </button>
+                                </div>
                             ) : (
                                 <span className={`text-xs font-bold ${
-                                    isDeadlineSoon ? 'text-rose-600 dark:text-rose-400 animate-pulse' : isDeadlinePassed ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-200'
+                                    isThreeDaysRemaining 
+                                        ? 'text-amber-700 dark:text-amber-300 font-extrabold animate-pulse'
+                                        : isCriticalDeadline 
+                                        ? 'text-rose-600 dark:text-rose-400' 
+                                        : isDeadlinePassed 
+                                        ? 'text-slate-400 line-through' 
+                                        : 'text-slate-700 dark:text-slate-200'
                                 }`}>
                                     {scholarship.deadline ? new Date(scholarship.deadline).toLocaleDateString() : 'No deadline set'}
-                                    {isDeadlineSoon && ' ⚠️ (Urgent!)'}
+                                    {isThreeDaysRemaining && ' ⏰ (3 Days Left!)'}
+                                    {!isThreeDaysRemaining && isCriticalDeadline && ` 🚨 (${daysRemaining === 0 ? 'Due Today' : `${daysRemaining}d Left`})`}
+                                    {!isCriticalDeadline && isDeadlineSoon && ' ⚠️ (Urgent!)'}
                                 </span>
                             )}
                         </div>

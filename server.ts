@@ -140,6 +140,22 @@ const cvAnalysisSchema = {
             items: { type: Type.STRING },
             description: "3 to 4 actionable strategies on how the candidate can bridge these gaps in outreach emails and SOPs.",
         },
+        researchProficiencies: {
+            type: Type.ARRAY,
+            description: "Visual radar chart scores mapping user's proficiency across core academic research areas based on CV text.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    area: { type: Type.STRING, description: "Name of the research area: 'Data Analysis', 'Writing', 'Lab Tech', 'Theoretical Physics', 'Literature Synthesis', or 'Project Execution'" },
+                    score: { type: Type.INTEGER, description: "Candidate proficiency score from 30 to 98" },
+                    benchmarkScore: { type: Type.INTEGER, description: "Top-Tier graduate admissions benchmark score (70-85)" },
+                    level: { type: Type.STRING, description: "Foundational, Intermediate, Proficient, Advanced, or Expert" },
+                    evidence: { type: Type.STRING, description: "Specific tools, publications, or projects identified in CV" },
+                    recommendation: { type: Type.STRING, description: "Concrete advice to raise proficiency in this domain" }
+                },
+                required: ["area", "score", "benchmarkScore", "level", "evidence", "recommendation"]
+            }
+        }
     },
     required: ["summary", "strengths", "gaps", "recommendations"],
 };
@@ -195,6 +211,56 @@ function synthesizeCvAnalysisFallback(cvText: string) {
             "Cite 1-2 recent 2024-2026 papers from target professors and propose a concise 2-sentence research extension",
             "Create a clean GitHub repository portfolio showcasing reproducible research code and documentation",
             "Emphasize willingness to undertake both foundational Research Assistantship (RA) and Teaching Assistantship (TA) duties"
+        ],
+        researchProficiencies: [
+            {
+                area: "Data Analysis",
+                score: isAI ? 92 : 78,
+                benchmarkScore: 80,
+                level: isAI ? "Expert" : "Proficient",
+                evidence: isAI ? "Demonstrated Python, PyTorch/TensorFlow, statistical data modeling, and neural pipelines." : "Quantitative data handling and statistical computation coursework.",
+                recommendation: "Highlight reproducible Jupyter notebooks, metric evaluation tables, and benchmark ablation studies."
+            },
+            {
+                area: "Writing",
+                score: 74,
+                benchmarkScore: 75,
+                level: "Proficient",
+                evidence: "Academic thesis documentation, project technical reports, and structured research narratives.",
+                recommendation: "Link preprint drafts (arXiv/bioRxiv), conference submissions, or senior thesis DOI links."
+            },
+            {
+                area: "Lab Tech",
+                score: isRobotics || isBio || isEnergy ? 88 : 72,
+                benchmarkScore: 70,
+                level: isRobotics || isBio || isEnergy ? "Advanced" : "Proficient",
+                evidence: isRobotics ? "ROS/ROS2, sensor integration, actuator testing, and hardware-in-the-loop experiments." : isBio ? "Spectroscopy, PCR protocols, wet-lab assays, and standard operating procedures." : "Experimental prototyping, benchmark instrumentation, and systematic validation.",
+                recommendation: "Explicitly detail lab instruments, hardware specifications, and experimental control protocols."
+            },
+            {
+                area: "Theoretical Physics",
+                score: 82,
+                benchmarkScore: 75,
+                level: "Advanced",
+                evidence: "Mathematical modeling, differential equations, linear algebra, and first-principles algorithm derivations.",
+                recommendation: "Emphasize formal analytical proofs, dynamical system simulations, and algorithmic time complexity proofs."
+            },
+            {
+                area: "Literature Synthesis",
+                score: 78,
+                benchmarkScore: 75,
+                level: "Proficient",
+                evidence: "Domain background benchmarking, related work contextualization, and comparative academic surveys.",
+                recommendation: "Directly reference 2024-2026 flagship publications from prospective faculty members in outreach."
+            },
+            {
+                area: "Project Execution",
+                score: 86,
+                benchmarkScore: 80,
+                level: "Advanced",
+                evidence: "Git repository management, collaborative research deliverables, milestone tracking, and code reviews.",
+                recommendation: "Showcase continuous integration badges, open-source documentation, and reproducibility guidelines."
+            }
         ]
     };
 }
@@ -923,6 +989,7 @@ Analyze the candidate's CV in depth for international Master's/PhD scholarship o
 5. Strengths: 3 to 5 concrete strengths (e.g. specialized skills, thesis, publications, high GPA, tooling).
 6. Gaps: 2 to 4 potential gaps or missing elements (e.g. GRE/IELTS, formal publications, lab methodologies).
 7. Recommendations: 3 to 4 actionable strategies to elevate application letters and emails.
+8. Research Proficiencies: Map candidate's proficiency (35-98) across 6 research areas ('Data Analysis', 'Writing', 'Lab Tech', 'Theoretical Physics', 'Literature Synthesis', 'Project Execution') along with top-tier benchmark score (70-85), proficiency tier, evidence in CV, and specific improvement tip.
 
 ---CANDIDATE CV---
 ${cvText}`;
@@ -939,6 +1006,7 @@ ${cvText}`;
 
                 if (response?.text) {
                     const parsed = JSON.parse(response.text);
+                    const fallback = synthesizeCvAnalysisFallback(cvText);
                     return res.json({
                         summary: parsed.summary || "",
                         readinessScore: parsed.readinessScore || 88,
@@ -947,6 +1015,9 @@ ${cvText}`;
                         strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
                         gaps: Array.isArray(parsed.gaps) ? parsed.gaps : [],
                         recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+                        researchProficiencies: Array.isArray(parsed.researchProficiencies) && parsed.researchProficiencies.length > 0 
+                            ? parsed.researchProficiencies 
+                            : fallback.researchProficiencies,
                     });
                 }
             } catch (aiErr) {

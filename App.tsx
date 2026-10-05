@@ -5,9 +5,17 @@ import { GeneratedContent } from './components/GeneratedContent';
 import { Spinner } from './components/Spinner';
 import { ScholarshipCard } from './components/ScholarshipCard';
 import { CvSummaryCard } from './components/CvSummaryCard';
+import { CvRadarChart } from './components/CvRadarChart';
 import { ApplicationTracker } from './components/ApplicationTracker';
 import { WatermarkRemover } from './components/WatermarkRemover';
 import { MasterProgramsExplorer } from './components/MasterProgramsExplorer';
+import { DeadlineNotificationCenter } from './components/DeadlineNotificationCenter';
+import { 
+    checkAndTrigger3DayNotifications, 
+    requestBrowserNotificationPermission, 
+    getNotificationPermission, 
+    calculateDaysRemaining 
+} from './services/deadlineNotificationService';
 import { 
     findPositions, 
     findPositionsInKorea, 
@@ -25,7 +33,25 @@ import {
     draftDocument, 
     analyzeCv 
 } from './services/geminiService';
-import { Scholarship, DocumentType, Tab, CvAnalysis, PositionSearchType } from './types';
+import { Scholarship, DocumentType, Tab, CvAnalysis, PositionSearchType, CvProfile } from './types';
+import { 
+    signInWithGoogle, 
+    signOutUser, 
+    subscribeToAuthChanges, 
+    subscribeToCvProfiles, 
+    saveCvProfileToFirestore, 
+    deleteCvProfileFromFirestore, 
+    testConnection 
+} from './services/firebaseService';
+import { 
+    loadLocalProfiles, 
+    saveLocalProfiles, 
+    getActiveProfileId, 
+    setActiveProfileId, 
+    mergeLocalAndCloudProfiles 
+} from './utils/cvProfileManager';
+import { CvVersionSwitcher } from './components/CvVersionSwitcher';
+import { User } from 'firebase/auth';
 import { 
     FileText, 
     Search, 
@@ -85,21 +111,42 @@ const IELTS_LEVELS = [
 const App: React.FC = () => {
     const [activeTab, setActiveTab] = useState<Tab>(Tab.FindPositions);
     const [activeTheme, setActiveTheme] = useState<string>('vibrant');
-    const [cvText, setCvText] = useState<string>(() => {
-        try {
-            return localStorage.getItem('scholar_cv_text') || '';
-        } catch {
-            return '';
+
+    // Firebase Auth State
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+    // CV Profiles (Local Storage & Cloud persistence)
+    const [profiles, setProfiles] = useState<CvProfile[]>(() => loadLocalProfiles());
+    const [activeProfileId, setActiveProfileIdState] = useState<string | null>(() => {
+        const saved = getActiveProfileId();
+        const initial = loadLocalProfiles();
+        if (saved && initial.some(p => p.id === saved)) {
+            return saved;
         }
+        return initial[0]?.id || null;
     });
+
+    const [cvText, setCvText] = useState<string>(() => {
+        const initial = loadLocalProfiles();
+        const saved = getActiveProfileId();
+        const active = initial.find(p => p.id === saved) || initial[0];
+        return active ? active.text : (localStorage.getItem('scholar_cv_text') || '');
+    });
+
     const [cvAnalysis, setCvAnalysis] = useState<CvAnalysis | null>(() => {
+        const initial = loadLocalProfiles();
+        const saved = getActiveProfileId();
+        const active = initial.find(p => p.id === saved) || initial[0];
+        if (active?.analysis) return active.analysis;
         try {
-            const saved = localStorage.getItem('scholar_cv_analysis');
-            return saved ? JSON.parse(saved) : null;
+            const legacy = localStorage.getItem('scholar_cv_analysis');
+            return legacy ? JSON.parse(legacy) : null;
         } catch {
             return null;
         }
     });
+
     const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
     const [summaryError, setSummaryError] = useState<string | null>(null);
     const [englishLevel, setEnglishLevel] = useState<number>(8);
@@ -126,6 +173,53 @@ const App: React.FC = () => {
     const [selectedTierFilter, setSelectedTierFilter] = useState<string>('all');
     const [minMatchScore, setMinMatchScore] = useState<number>(75);
     const [onlyBookmarked, setOnlyBookmarked] = useState<boolean>(false);
+
+    // 1. Initialize Firebase & test connection on mount
+    useEffect(() => {
+        testConnection();
+
+        const unsubscribeAuth = subscribeToAuthChanges(async (user) => {
+            setCurrentUser(user);
+            setIsAuthLoading(false);
+
+            if (user) {
+                // Sync current local profiles to Firestore under the user's account
+                try {
+                    const localProfiles = loadLocalProfiles();
+                    for (const p of localProfiles) {
+                        await saveCvProfileToFirestore(user.uid, p);
+                    }
+                } catch (e) {
+                    console.debug('Initial local-to-cloud sync notice:', e);
+                }
+            }
+        });
+
+        return () => unsubscribeAuth();
+    }, []);
+
+    // 2. Real-time Firestore sync when authenticated
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const unsubscribeFirestore = subscribeToCvProfiles(
+            currentUser.uid,
+            (cloudProfiles) => {
+                if (cloudProfiles && cloudProfiles.length > 0) {
+                    setProfiles((prev) => {
+                        const merged = mergeLocalAndCloudProfiles(prev, cloudProfiles);
+                        saveLocalProfiles(merged);
+                        return merged;
+                    });
+                }
+            },
+            (err) => {
+                console.warn('Live CV profiles sync notice:', err);
+            }
+        );
+
+        return () => unsubscribeFirestore();
+    }, [currentUser]);
 
     const handleNavigateToWatermarkCleaner = useCallback((initialText?: string) => {
         if (initialText) {
@@ -157,15 +251,45 @@ const App: React.FC = () => {
         }
     }, [cvText, cvAnalysis, scholarships]);
 
+    // Automatic 3-Day Deadline Push Notification Monitor
     useEffect(() => {
-        try {
-            if (typeof window !== 'undefined' && 'Notification' in window) {
-                setNotificationsEnabled(Notification.permission === 'granted');
-            }
-        } catch (e) {
-            console.debug('Notification check ignored:', e);
+        // Initial permission check
+        const perm = getNotificationPermission();
+        setNotificationsEnabled(perm === 'granted');
+
+        // Check stored scholarship deadlines and trigger notifications specifically 3 days prior
+        if (scholarships.length > 0) {
+            checkAndTrigger3DayNotifications(scholarships);
         }
-    }, []);
+
+        // Check when tab returns to focus / visibility
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && scholarships.length > 0) {
+                checkAndTrigger3DayNotifications(scholarships);
+            }
+        };
+
+        // Listen for notification click event to navigate to Deadlines tab
+        const handleNotificationClick = () => {
+            setActiveTab(Tab.Deadlines);
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('scholarship-notification-click', handleNotificationClick);
+
+        // Periodic background interval check every 30 minutes
+        const intervalId = setInterval(() => {
+            if (scholarships.length > 0) {
+                checkAndTrigger3DayNotifications(scholarships);
+            }
+        }, 30 * 60 * 1000);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('scholarship-notification-click', handleNotificationClick);
+            clearInterval(intervalId);
+        };
+    }, [scholarships]);
 
     const generateSummaryForCv = useCallback(async (text: string) => {
         if (!text || !text.trim()) {
@@ -177,13 +301,142 @@ const App: React.FC = () => {
         try {
             const analysis = await analyzeCv(text);
             setCvAnalysis(analysis);
+
+            // Cache analysis onto the active profile
+            setProfiles((prev) => {
+                const updated = prev.map((p) => {
+                    if (p.id === activeProfileId) {
+                        return { ...p, analysis, updatedAt: new Date().toISOString() };
+                    }
+                    return p;
+                });
+                saveLocalProfiles(updated);
+                return updated;
+            });
         } catch (err: any) {
             console.error('Failed to generate CV analysis:', err);
             setSummaryError(err?.message || 'Unable to generate candidate review. You can still search for positions or click Try Again.');
         } finally {
             setIsGeneratingSummary(false);
         }
-    }, []);
+    }, [activeProfileId]);
+
+    // Profile Management Handlers
+    const handleSelectProfile = useCallback((profileId: string) => {
+        const target = profiles.find(p => p.id === profileId);
+        if (!target) return;
+        setActiveProfileIdState(profileId);
+        setActiveProfileId(profileId);
+        setCvText(target.text);
+        if (target.analysis) {
+            setCvAnalysis(target.analysis);
+        } else {
+            generateSummaryForCv(target.text);
+        }
+    }, [profiles, generateSummaryForCv]);
+
+    const handleCreateProfile = useCallback(async (newProfile: CvProfile) => {
+        const updated = [newProfile, ...profiles];
+        setProfiles(updated);
+        saveLocalProfiles(updated);
+        setActiveProfileIdState(newProfile.id);
+        setActiveProfileId(newProfile.id);
+        setCvText(newProfile.text);
+        generateSummaryForCv(newProfile.text);
+
+        if (currentUser) {
+            try {
+                await saveCvProfileToFirestore(currentUser.uid, newProfile);
+            } catch (e) {
+                console.error('Failed to save new profile to Firestore:', e);
+            }
+        }
+    }, [profiles, currentUser, generateSummaryForCv]);
+
+    const handleUpdateProfile = useCallback(async (updatedProfile: CvProfile) => {
+        const updated = profiles.map(p => p.id === updatedProfile.id ? updatedProfile : p);
+        setProfiles(updated);
+        saveLocalProfiles(updated);
+
+        if (activeProfileId === updatedProfile.id) {
+            setCvText(updatedProfile.text);
+        }
+
+        if (currentUser) {
+            try {
+                await saveCvProfileToFirestore(currentUser.uid, updatedProfile);
+            } catch (e) {
+                console.error('Failed to update profile in Firestore:', e);
+            }
+        }
+    }, [profiles, activeProfileId, currentUser]);
+
+    const handleDeleteProfile = useCallback(async (profileId: string) => {
+        if (profiles.length <= 1) return;
+        const remaining = profiles.filter(p => p.id !== profileId);
+        setProfiles(remaining);
+        saveLocalProfiles(remaining);
+
+        if (activeProfileId === profileId) {
+            const next = remaining[0];
+            setActiveProfileIdState(next.id);
+            setActiveProfileId(next.id);
+            setCvText(next.text);
+            if (next.analysis) {
+                setCvAnalysis(next.analysis);
+            } else {
+                generateSummaryForCv(next.text);
+            }
+        }
+
+        if (currentUser) {
+            try {
+                await deleteCvProfileFromFirestore(currentUser.uid, profileId);
+            } catch (e) {
+                console.error('Failed to delete profile from Firestore:', e);
+            }
+        }
+    }, [profiles, activeProfileId, currentUser, generateSummaryForCv]);
+
+    const handleSaveCurrentTextToActiveProfile = useCallback(async () => {
+        if (!activeProfileId) return;
+        const active = profiles.find(p => p.id === activeProfileId);
+        if (!active) return;
+
+        const updated: CvProfile = {
+            ...active,
+            text: cvText,
+            analysis: cvAnalysis,
+            updatedAt: new Date().toISOString(),
+        };
+
+        await handleUpdateProfile(updated);
+    }, [activeProfileId, profiles, cvText, cvAnalysis, handleUpdateProfile]);
+
+    const handleSignIn = async () => {
+        try {
+            setIsAuthLoading(true);
+            const user = await signInWithGoogle();
+            setCurrentUser(user);
+            const localProfiles = loadLocalProfiles();
+            for (const p of localProfiles) {
+                await saveCvProfileToFirestore(user.uid, p);
+            }
+        } catch (e) {
+            console.error('Sign-in failed:', e);
+        } finally {
+            setIsAuthLoading(false);
+        }
+    };
+
+    const handleSignOut = async () => {
+        try {
+            await signOutUser();
+            setCurrentUser(null);
+        } catch (e) {
+            console.error('Sign-out failed:', e);
+        }
+    };
 
     const handleCvUpload = (text: string) => {
         setCvText(text);
@@ -191,6 +444,28 @@ const App: React.FC = () => {
         setActiveGeneratedDoc(null);
         setError(null);
         generateSummaryForCv(text);
+
+        // Also update active profile text
+        if (activeProfileId) {
+            setProfiles((prev) => {
+                const updated = prev.map((p) => {
+                    if (p.id === activeProfileId) {
+                        return { ...p, text, updatedAt: new Date().toISOString() };
+                    }
+                    return p;
+                });
+                saveLocalProfiles(updated);
+                return updated;
+            });
+
+            if (currentUser) {
+                const active = profiles.find(p => p.id === activeProfileId);
+                if (active) {
+                    saveCvProfileToFirestore(currentUser.uid, { ...active, text, updatedAt: new Date().toISOString() })
+                        .catch(err => console.debug('Auto-sync CV text failed:', err));
+                }
+            }
+        }
     };
 
     const handleUpdateCvFromCleaner = (newCvText: string) => {
@@ -233,14 +508,33 @@ const App: React.FC = () => {
         );
     };
 
+    const handleImportApplications = useCallback((imported: Scholarship[]) => {
+        setScholarships((prev) => {
+            const map = new Map<string, Scholarship>();
+            prev.forEach(s => map.set(s.id || s.link, s));
+            imported.forEach((imp, idx) => {
+                const key = imp.id || imp.link || `imported-${Date.now()}-${idx}`;
+                map.set(key, { ...map.get(key), ...imp, id: key, bookmarked: true });
+            });
+            const updated = Array.from(map.values());
+            try {
+                localStorage.setItem('scholar_opportunities', JSON.stringify(updated));
+            } catch (e) {
+                console.debug('LocalStorage write notice:', e);
+            }
+            return updated;
+        });
+    }, []);
+
     const requestNotificationPermission = async () => {
         try {
-            if (typeof window !== 'undefined' && 'Notification' in window) {
-                const permission = await Notification.requestPermission();
-                setNotificationsEnabled(permission === 'granted');
+            const granted = await requestBrowserNotificationPermission();
+            setNotificationsEnabled(granted);
+            if (granted && scholarships.length > 0) {
+                checkAndTrigger3DayNotifications(scholarships);
             }
         } catch (e) {
-            console.debug('Notification permission request ignored:', e);
+            console.debug('Notification permission request error:', e);
         }
     };
 
@@ -596,6 +890,11 @@ const App: React.FC = () => {
                     deadlinesCount={upcomingDeadlines.length}
                     activeTheme={activeTheme}
                     onChangeTheme={setActiveTheme}
+                    currentUser={currentUser}
+                    isAuthLoading={isAuthLoading}
+                    onSignIn={handleSignIn}
+                    onSignOut={handleSignOut}
+                    cvVersionsCount={profiles.length}
                 />
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
@@ -611,17 +910,50 @@ const App: React.FC = () => {
                                     Candidate Profile & Academic CV
                                 </h2>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Upload your CV to automatically unlock professor matching and tailored document drafting.
+                                    Save, switch, and tailor multiple CV versions for different fields or universities with automatic cloud persistence.
                                 </p>
                             </div>
                         </div>
                     </div>
+
+                    {/* CV Version Switcher & Multi-field Library */}
+                    <CvVersionSwitcher
+                        profiles={profiles}
+                        activeProfileId={activeProfileId}
+                        onSelectProfile={handleSelectProfile}
+                        onCreateProfile={handleCreateProfile}
+                        onUpdateProfile={handleUpdateProfile}
+                        onDeleteProfile={handleDeleteProfile}
+                        currentCvText={cvText}
+                        onSaveCurrentTextToActiveProfile={handleSaveCurrentTextToActiveProfile}
+                        isCloudSynced={Boolean(currentUser)}
+                        userEmail={currentUser?.email}
+                        onSignInPrompt={handleSignIn}
+                    />
 
                     <CVUploader 
                         onCvUpload={handleCvUpload} 
                         currentCvText={cvText}
                         onCleanWatermarks={handleNavigateToWatermarkCleaner}
                     />
+
+                    {/* Visual Academic Score (0-100) & 3 Specific Profile Strengthening Suggestions */}
+                    {(cvText || isGeneratingSummary) && (
+                        <div className="pt-2">
+                            <CvSummaryCard
+                                analysis={cvAnalysis}
+                                isLoading={isGeneratingSummary}
+                                error={summaryError}
+                                onRegenerate={handleRegenerateSummary}
+                                onExploreField={(field) => {
+                                    setSearchQuery(field);
+                                    setActiveTab(Tab.FindPositions);
+                                }}
+                                onNavigateToRadar={() => setActiveTab(Tab.CvInsights)}
+                                compact={true}
+                            />
+                        </div>
+                    )}
 
                     {/* Writing Level & Tone Selector */}
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -892,7 +1224,14 @@ const App: React.FC = () => {
 
                     {/* TAB 2: CV INSIGHTS & RADAR */}
                     {activeTab === Tab.CvInsights && (
-                        <div className="space-y-6">
+                        <div className="space-y-8">
+                            {/* Recharts Visual Radar Chart Mapping Research Proficiency */}
+                            <CvRadarChart
+                                cvText={cvText}
+                                proficiencies={cvAnalysis?.researchProficiencies}
+                                isLoading={isGeneratingSummary}
+                            />
+
                             <CvSummaryCard
                                 analysis={cvAnalysis}
                                 isLoading={isGeneratingSummary}
@@ -1057,30 +1396,33 @@ const App: React.FC = () => {
                             onToggleBookmark={handleToggleBookmark}
                             onDraft={handleDraftDocumentFromCard}
                             onUpdateDeadline={handleUpdateDeadline}
+                            onImportApplications={handleImportApplications}
                         />
                     )}
 
                     {/* TAB 6: DEADLINES */}
                     {activeTab === Tab.Deadlines && (
                         <div className="space-y-6">
+                            {/* Browser Push Notification & 3-Day Trigger Management Center */}
+                            <DeadlineNotificationCenter
+                                scholarships={scholarships}
+                                onUpdateDeadline={handleUpdateDeadline}
+                                onSelectScholarship={(s) => handleDraftDocumentFromCard(s, DocumentType.StatementOfPurpose)}
+                                onPermissionsChanged={setNotificationsEnabled}
+                            />
+
                             <div className="flex items-center justify-between flex-wrap gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
                                 <div>
-                                    <h2 className="text-xl font-black text-slate-900 dark:text-white">
-                                        Upcoming Application Deadlines
+                                    <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                        <span>Scheduled Application Deadlines</span>
+                                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200">
+                                            {upcomingDeadlines.length} Scheduled
+                                        </span>
                                     </h2>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        Keep track of application submission dates and funding rounds.
+                                        Calendar countdowns and funding submission deadlines with active 3-day browser push alerts.
                                     </p>
                                 </div>
-                                {!notificationsEnabled && 'Notification' in window && (
-                                    <button 
-                                        type="button"
-                                        onClick={requestNotificationPermission}
-                                        className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-xl border border-blue-200 dark:border-blue-800 text-xs font-bold hover:bg-blue-100 transition-colors"
-                                    >
-                                        <Bell className="w-4 h-4" /> Enable Browser Reminders
-                                    </button>
-                                )}
                             </div>
 
                             {upcomingDeadlines.length === 0 ? (

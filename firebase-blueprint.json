@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "CvProfile": {
+      "title": "CV Profile Version",
+      "description": "A tailored version of a candidate's academic curriculum vitae for a specific research field or university application.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CV profile version.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Descriptive name for this CV version.",
+          "maxLength": 100
+        },
+        "targetField": {
+          "type": "string",
+          "description": "Target academic field or discipline.",
+          "maxLength": 100
+        },
+        "text": {
+          "type": "string",
+          "description": "Complete raw text content of the tailored CV.",
+          "maxLength": 20000
+        },
+        "targetInstitutions": {
+          "type": "string",
+          "description": "Target universities or labs for this profile.",
+          "maxLength": 200
+        },
+        "notes": {
+          "type": "string",
+          "description": "Candidate's personal notes on this version.",
+          "maxLength": 1000
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "Whether this is the primary active CV."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp in ISO 8601 format.",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp in ISO 8601 format.",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "userId", "name", "targetField", "text", "isDefault", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/cv_profiles/{profileId}": {
+      "schema": "CvProfile",
+      "description": "Collection of tailored CV profile versions owned by a user."
+    }
+  }
+}

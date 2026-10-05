@@ -1,5 +1,22 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { UploadCloud, FileText, Sparkles, CheckCircle2, AlertCircle, Edit3, X, FileCheck, ArrowRight, ShieldCheck } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { 
+    UploadCloud, 
+    FileText, 
+    Sparkles, 
+    CheckCircle2, 
+    AlertCircle, 
+    Edit3, 
+    X, 
+    FileCheck, 
+    ArrowRight, 
+    ShieldCheck,
+    Eye,
+    EyeOff,
+    FileSearch,
+    RefreshCw
+} from 'lucide-react';
+import { PdfViewer } from './PdfViewer';
+import { generatePdfBlobFromText } from '../utils/pdfHelper';
 
 const SAMPLE_CVS = [
     {
@@ -96,6 +113,23 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
     const [isDragOver, setIsDragOver] = useState<boolean>(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // PDF Preview States
+    const [uploadedPdfFile, setUploadedPdfFile] = useState<File | null>(null);
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+    const [showPdfViewer, setShowPdfViewer] = useState<boolean>(false);
+    const [pendingExtractedText, setPendingExtractedText] = useState<string>('');
+    const [isCvConfirmed, setIsCvConfirmed] = useState<boolean>(false);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+
+    // Clean up object URLs on unmount
+    useEffect(() => {
+        return () => {
+            if (pdfPreviewUrl && pdfPreviewUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(pdfPreviewUrl);
+            }
+        };
+    }, [pdfPreviewUrl]);
+
     const handleFile = async (file: File) => {
         if (!file) return;
         setFileName(file.name);
@@ -123,6 +157,22 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                     fullText += pageText + '\n\n';
                 }
                 textContent = fullText.trim();
+
+                if (!textContent) {
+                    throw new Error('The uploaded PDF appears to be empty or image-only scanned. Please paste your text directly.');
+                }
+
+                // Create blob URL for preview
+                const url = URL.createObjectURL(file);
+                setUploadedPdfFile(file);
+                setPdfPreviewUrl(url);
+                setPendingExtractedText(textContent);
+                setShowPdfViewer(true);
+                setIsCvConfirmed(false);
+
+                // We keep text ready so user can preview directly in application before confirming processing!
+                setIsLoadingFile(false);
+                return;
             } else if (fileExtension === 'docx') {
                 const mammothLib = getMammoth();
                 if (!mammothLib) {
@@ -140,10 +190,12 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
             }
 
             if (!textContent.trim()) {
-                throw new Error('The uploaded file appears to be empty or image-only. Please paste your text directly.');
+                throw new Error('The uploaded file appears to be empty. Please paste your text directly.');
             }
 
+            // For non-PDF files, process immediately
             onCvUpload(textContent.trim());
+            setIsCvConfirmed(true);
         } catch (err: any) {
             console.error('Error processing file:', err);
             setError(err.message || 'Failed to extract text from this file. Please paste your CV text directly.');
@@ -170,6 +222,7 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
             setFileName('Pasted Academic CV');
             setIsPasting(false);
             setError(null);
+            setIsCvConfirmed(true);
         }
     };
 
@@ -178,6 +231,49 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
         setFileName(`Sample: ${sampleTitle}`);
         onCvUpload(sampleText);
         setError(null);
+        setIsCvConfirmed(true);
+        setUploadedPdfFile(null);
+        setPdfPreviewUrl(null);
+        setShowPdfViewer(false);
+    };
+
+    // Confirm and process the previewed PDF
+    const handleConfirmProcess = () => {
+        const textToProcess = pendingExtractedText || currentCvText || '';
+        if (textToProcess.trim()) {
+            onCvUpload(textToProcess.trim());
+            setIsCvConfirmed(true);
+        }
+    };
+
+    // Toggle PDF preview (for active CV or generated PDF preview)
+    const handleTogglePdfPreview = async () => {
+        if (showPdfViewer) {
+            setShowPdfViewer(false);
+            return;
+        }
+
+        // If we already have an uploaded PDF file or URL, just show it
+        if (uploadedPdfFile || pdfPreviewUrl) {
+            setShowPdfViewer(true);
+            return;
+        }
+
+        // If we have CV text, generate a formatted PDF on the fly using jsPDF!
+        const text = currentCvText || pastedText || pendingExtractedText;
+        if (text) {
+            setIsGeneratingPdf(true);
+            try {
+                const blob = generatePdfBlobFromText(text, fileName || 'Candidate Curriculum Vitae');
+                const url = URL.createObjectURL(blob);
+                setPdfPreviewUrl(url);
+                setShowPdfViewer(true);
+            } catch (err) {
+                console.error('Error generating preview PDF:', err);
+            } finally {
+                setIsGeneratingPdf(false);
+            }
+        }
     };
 
     const hasActiveCv = Boolean(currentCvText && currentCvText.trim().length > 50);
@@ -202,13 +298,13 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
 
             {/* Active CV Badge indicator */}
             {hasActiveCv && !isPasting && (
-                <div className="flex items-center justify-between p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-sky-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl shadow-2xs">
+                <div className="flex flex-wrap items-center justify-between p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-sky-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl shadow-2xs gap-3">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
                             <FileCheck className="w-4 h-4" />
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
                                     {fileName || 'Active Candidate CV Loaded'}
                                 </span>
@@ -221,28 +317,102 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* PDF Preview Toggle Button */}
+                        <button
+                            type="button"
+                            onClick={handleTogglePdfPreview}
+                            disabled={isGeneratingPdf}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-2xs ${
+                                showPdfViewer 
+                                    ? 'bg-indigo-600 text-white border-indigo-600' 
+                                    : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900'
+                            }`}
+                            title="Preview your CV document visually in the interactive PDF viewer"
+                        >
+                            {isGeneratingPdf ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : showPdfViewer ? (
+                                <EyeOff className="w-3.5 h-3.5" />
+                            ) : (
+                                <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                            )}
+                            <span>{showPdfViewer ? 'Hide PDF' : 'Preview PDF'}</span>
+                        </button>
+
                         {onCleanWatermarks && currentCvText && (
                             <button
                                 type="button"
                                 onClick={() => onCleanWatermarks(currentCvText)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-950/60 bg-cyan-50 dark:bg-cyan-950/40 rounded-lg border border-cyan-200 dark:border-cyan-800 transition-colors shadow-2xs"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-950/60 bg-cyan-50 dark:bg-cyan-950/40 rounded-lg border border-cyan-200 dark:border-cyan-800 transition-colors shadow-2xs"
                                 title="Scan and purge hidden zero-width watermarks from this CV"
                             >
-                                <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" /> Clean AI Watermarks
+                                <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" /> Clean Watermarks
                             </button>
                         )}
+
                         <button
                             type="button"
                             onClick={() => { setIsPasting(true); setPastedText(currentCvText || ''); }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-white/80 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors shadow-2xs"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-white/80 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors shadow-2xs"
                         >
-                            <Edit3 className="w-3 h-3" /> Edit
+                            <Edit3 className="w-3.5 h-3.5" /> Edit Text
                         </button>
                     </div>
                 </div>
             )}
 
+            {/* PRE-PROCESSING PDF PREVIEW CALLOUT BANNER */}
+            {showPdfViewer && !isCvConfirmed && uploadedPdfFile && (
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-indigo-950/50 dark:via-slate-850 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-800 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                            <FileSearch className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                PDF Document Preview Active
+                            </span>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                                Verify your visual layout and extracted text below. When satisfied, click <strong>"Confirm & Process CV"</strong> to match positions.
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handleConfirmProcess}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/20 transition-all"
+                    >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                        Confirm & Process CV
+                    </button>
+                </div>
+            )}
+
+            {/* INTERACTIVE PDF VIEWER COMPONENT */}
+            {showPdfViewer && (
+                <PdfViewer
+                    file={uploadedPdfFile}
+                    pdfUrl={pdfPreviewUrl}
+                    fileName={fileName || 'Academic_CV.pdf'}
+                    extractedText={pendingExtractedText || currentCvText}
+                    onConfirmProcess={handleConfirmProcess}
+                    onEditExtractedText={() => {
+                        setIsPasting(true);
+                        setPastedText(pendingExtractedText || currentCvText || '');
+                        setShowPdfViewer(false);
+                    }}
+                    onReUpload={() => {
+                        fileInputRef.current?.click();
+                    }}
+                    onClose={() => setShowPdfViewer(false)}
+                    hasBeenProcessed={isCvConfirmed || hasActiveCv}
+                />
+            )}
+
+            {/* Text Paste Area */}
             {isPasting ? (
                 <div className="w-full bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
                     <div className="flex items-center justify-between">
@@ -261,7 +431,7 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                         value={pastedText}
                         onChange={(e) => setPastedText(e.target.value)}
                     />
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
                         <div className="flex gap-2">
                             <button
                                 type="button"
@@ -280,9 +450,21 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                                 Cancel
                             </button>
                         </div>
+
+                        {pastedText.trim().length > 50 && (
+                            <button
+                                type="button"
+                                onClick={handleTogglePdfPreview}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 rounded-xl border border-indigo-200 dark:border-indigo-800 transition-all shadow-2xs"
+                            >
+                                <Eye className="w-3.5 h-3.5" />
+                                Preview as PDF
+                            </button>
+                        )}
                     </div>
                 </div>
             ) : (
+                /* Drag & Drop Upload Zone */
                 <div
                     onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
                     onDragLeave={() => setIsDragOver(false)}
@@ -316,13 +498,13 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                                 Drag & drop your Academic CV or click to browse
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                Supports <span className="font-semibold text-blue-600 dark:text-blue-400">PDF, DOCX, TXT</span> (Max 10MB)
+                                Supports <span className="font-semibold text-blue-600 dark:text-blue-400">PDF (with in-app visual preview)</span>, DOCX, TXT (Max 10MB)
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-1">
-                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                                PDF Document
+                        <div className="flex items-center gap-2 pt-1 flex-wrap justify-center">
+                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                                <Eye className="w-3 h-3 text-blue-600" /> PDF Interactive Preview
                             </span>
                             <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
                                 Word (.docx)
@@ -346,7 +528,7 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                         <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                         Try Instant Demo Profiles
                     </span>
-                    <span className="text-[11px] text-slate-400">1-Click Load</span>
+                    <span className="text-[11px] text-slate-400">1-Click Load & PDF Preview</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     {SAMPLE_CVS.map((sample, idx) => (

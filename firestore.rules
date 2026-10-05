@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidCvProfile(data, userId, profileId) {
+      let reqKeys = ['id', 'userId', 'name', 'targetField', 'text', 'isDefault', 'createdAt', 'updatedAt'];
+      let allAllowed = ['id', 'userId', 'name', 'targetField', 'text', 'isDefault', 'createdAt', 'updatedAt', 'targetInstitutions', 'notes'];
+
+      return data.keys().hasAll(reqKeys)
+        && data.keys().hasOnly(allAllowed)
+        && data.id == profileId
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.targetField is string && data.targetField.size() > 0 && data.targetField.size() <= 100
+        && data.text is string && data.text.size() <= 20000
+        && data.isDefault is bool
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64
+        && (!('targetInstitutions' in data) || (data.targetInstitutions is string && data.targetInstitutions.size() <= 200))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
+    }
+
+    match /users/{userId}/cv_profiles/{profileId} {
+      allow get: if isOwner(userId) && isValidId(profileId);
+      allow list: if isOwner(userId);
+      allow delete: if isOwner(userId) && isValidId(profileId);
+
+      allow create: if isOwner(userId)
+        && isValidId(profileId)
+        && isValidCvProfile(incoming(), userId, profileId);
+
+      allow update: if isOwner(userId)
+        && isValidId(profileId)
+        && isValidCvProfile(incoming(), userId, profileId)
+        && incoming().id == existing().id
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt;
+    }
+
+    // Connection test document
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

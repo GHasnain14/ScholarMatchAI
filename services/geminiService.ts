@@ -31,6 +31,7 @@ export const analyzeCv = async (cvText: string): Promise<CvAnalysis> => {
         strengths: Array.isArray(data.strengths) ? data.strengths : [],
         gaps: Array.isArray(data.gaps) ? data.gaps : [],
         recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
+        researchProficiencies: Array.isArray(data.researchProficiencies) ? data.researchProficiencies : undefined,
     };
 };
 

@@ -100,6 +100,29 @@ export interface CurriculumMotivationLetterResponse {
     uniAssistOrPortalGuide: string;
 }
 
+export interface CvProfile {
+    id: string;
+    userId?: string;
+    name: string;
+    targetField: string;
+    text: string;
+    targetInstitutions?: string;
+    notes?: string;
+    isDefault: boolean;
+    createdAt: string;
+    updatedAt: string;
+    analysis?: CvAnalysis | null;
+}
+
+export interface ResearchProficiency {
+    area: string;
+    score: number; // 0 - 100
+    benchmarkScore: number; // Target benchmark (e.g. 75)
+    level: string; // 'Foundational' | 'Intermediate' | 'Proficient' | 'Advanced' | 'Expert'
+    evidence: string;
+    recommendation: string;
+}
+
 export interface CvAnalysis {
     summary: string;
     strengths: string[];
@@ -108,6 +131,7 @@ export interface CvAnalysis {
     readinessScore?: number; // e.g. 88 / 100
     topResearchFields?: string[];
     suggestedKeywords?: string[];
+    researchProficiencies?: ResearchProficiency[];
 }
 
 export enum DocumentType {
