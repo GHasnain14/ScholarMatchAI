@@ -17,7 +17,8 @@ import {
     Clock, 
     CheckCircle,
     Check,
-    Bell
+    Bell,
+    Flame
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { calculateDaysRemaining } from '../services/deadlineNotificationService';
@@ -171,16 +172,22 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                     ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-emerald-500/5'
                     : scholarship.feedback === 'poor'
                     ? 'border-rose-400/80 opacity-75'
+                    : isDeadlineSoon
+                    ? 'border-rose-400 dark:border-rose-600/80 ring-2 ring-rose-400/20 shadow-rose-500/10'
                     : scholarship.bookmarked
                     ? 'border-amber-400 ring-2 ring-amber-400/20'
                     : 'border-slate-200/80 dark:border-slate-700/80 shadow-md'
             }`}
         >
             {/* Top Accent Strip with matchScore */}
-            <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+            <div className={`h-1.5 w-full ${
+                isDeadlineSoon
+                    ? 'bg-gradient-to-r from-rose-500 via-amber-500 to-indigo-500'
+                    : 'bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500'
+            }`} />
 
             <div className="p-5 sm:p-6 flex-grow flex flex-col space-y-4">
-                {/* Header Row: Country, Tier, Star Bookmark */}
+                {/* Header Row: Country, Tier, Priority Badge, Star Bookmark */}
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5 flex-wrap">
                         {countryInfo && (
@@ -196,6 +203,19 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                         {scholarship.fundingType && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                                 💰 {scholarship.fundingType}
+                            </span>
+                        )}
+                        {/* Visual Priority Badge for deadlines occurring within 7 days */}
+                        {isDeadlineSoon && (
+                            <span 
+                                title={`Priority Opportunity: Deadline approaching in ${daysRemaining === 0 ? 'today' : `${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`}!`}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-rose-50 dark:bg-rose-950/90 text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-700 shadow-2xs animate-pulse"
+                            >
+                                <Flame className="w-3 h-3 text-rose-500 fill-rose-500/40" />
+                                <span>Priority</span>
+                                <span className="text-[10px] font-bold opacity-90 lowercase">
+                                    • {daysRemaining === 0 ? 'today' : `${daysRemaining}d`}
+                                </span>
                             </span>
                         )}
                     </div>
@@ -348,17 +368,23 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                         ? 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700/80 ring-1 ring-amber-400/50'
                         : isCriticalDeadline
                         ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700/80'
+                        : isDeadlineSoon
+                        ? 'bg-rose-50/60 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60'
                         : 'bg-slate-50 dark:bg-slate-750 border-slate-200/80 dark:border-slate-700'
                 }`}>
                     <div className="flex items-center gap-2">
                         {isThreeDaysRemaining ? (
                             <Bell className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-bounce shrink-0" />
+                        ) : isDeadlineSoon ? (
+                            <Flame className="w-4 h-4 text-rose-500 shrink-0" />
                         ) : (
                             <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
                         )}
                         <div>
                             <span className="text-[10px] font-bold text-slate-400 block uppercase flex items-center gap-1">
-                                Deadline {isThreeDaysRemaining && <span className="text-amber-600 font-extrabold">• 3-Day Alert Active</span>}
+                                Deadline 
+                                {isThreeDaysRemaining && <span className="text-amber-600 font-extrabold">• 3-Day Alert Active</span>}
+                                {!isThreeDaysRemaining && isDeadlineSoon && <span className="text-rose-600 dark:text-rose-400 font-extrabold">• Priority (&le; 7 Days)</span>}
                             </span>
                             {isEditingDeadline ? (
                                 <div className="flex items-center gap-1 mt-0.5">
@@ -390,7 +416,7 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                                     {scholarship.deadline ? new Date(scholarship.deadline).toLocaleDateString() : 'No deadline set'}
                                     {isThreeDaysRemaining && ' ⏰ (3 Days Left!)'}
                                     {!isThreeDaysRemaining && isCriticalDeadline && ` 🚨 (${daysRemaining === 0 ? 'Due Today' : `${daysRemaining}d Left`})`}
-                                    {!isCriticalDeadline && isDeadlineSoon && ' ⚠️ (Urgent!)'}
+                                    {!isCriticalDeadline && isDeadlineSoon && ` ⚠️ (Priority • ${daysRemaining}d Left)`}
                                 </span>
                             )}
                         </div>
