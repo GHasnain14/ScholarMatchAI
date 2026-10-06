@@ -188,3 +188,51 @@ export enum PositionSearchType {
     Poland = "poland",
     Belgium = "belgium",
 }
+
+export interface LinkedInExperienceItem {
+    id: string;
+    roleTitle: string;
+    organization: string;
+    period: string;
+    location?: string;
+    bulletPoints: string[];
+    skills: string[];
+    formattedBlock: string;
+}
+
+export interface LinkedInProfileData {
+    headlineIdeas: string[];
+    aboutAcademic: string;
+    aboutIndustry: string;
+    aboutConcise: string;
+    experienceEntries: LinkedInExperienceItem[];
+    experienceFormattedAll: string;
+    topSkills: string[];
+}
+
+export interface ScholarPaper {
+    id: string;
+    title: string;
+    authors: string[];
+    journalOrVenue: string;
+    year: number | string;
+    citationCount: number;
+    abstract?: string;
+    scholarUrl: string;
+    pdfUrl?: string;
+    doi?: string;
+    relevanceSnippet?: string;
+    apaCitation?: string;
+    bibtex?: string;
+    sopHookSentence?: string;
+}
+
+export interface ScholarAuthorProfile {
+    name: string;
+    institution?: string;
+    scholarProfileUrl: string;
+    hIndex?: number;
+    totalCitations?: number;
+    interests?: string[];
+    topPapers: ScholarPaper[];
+}

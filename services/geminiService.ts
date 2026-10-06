@@ -4,7 +4,10 @@ import {
     CvAnalysis,
     MasterProgram,
     CurriculumMotivationLetterRequest,
-    CurriculumMotivationLetterResponse
+    CurriculumMotivationLetterResponse,
+    LinkedInProfileData,
+    ScholarPaper,
+    ScholarAuthorProfile
 } from '../types';
 
 /**
@@ -276,6 +279,63 @@ export const craftCurriculumMotivationLetter = async (
     }
 
     return response.json();
+};
+
+/**
+ * Call backend to generate formatted text blocks for LinkedIn About & Experience
+ */
+export const generateLinkedInBlocks = async (params: {
+    cvText: string;
+    profileName?: string;
+    targetField?: string;
+    targetInstitutions?: string;
+    useEmojis?: boolean;
+    customInstructions?: string;
+}): Promise<LinkedInProfileData> => {
+    const response = await fetch('/api/generate-linkedin-blocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error (${response.status}): Failed to generate LinkedIn formatted text.`);
+    }
+
+    return response.json();
+};
+
+/**
+ * Search Google Scholar papers and publications
+ */
+export const searchGoogleScholar = async (query: string, author?: string): Promise<ScholarPaper[]> => {
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    if (author) params.set('author', author);
+
+    const response = await fetch(`/api/google-scholar/search?${params.toString()}`);
+    if (!response.ok) {
+        throw new Error(`Failed to search Google Scholar (${response.status})`);
+    }
+    const data = await response.json();
+    return Array.isArray(data.papers) ? data.papers : [];
+};
+
+/**
+ * Fetch Google Scholar profile and top papers for an author/professor
+ */
+export const fetchScholarAuthorProfile = async (name: string, institution?: string): Promise<ScholarAuthorProfile> => {
+    const params = new URLSearchParams();
+    params.set('name', name);
+    if (institution) params.set('institution', institution);
+
+    const response = await fetch(`/api/google-scholar/author?${params.toString()}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch author profile (${response.status})`);
+    }
+    const data = await response.json();
+    return data.profile;
 };
 
 

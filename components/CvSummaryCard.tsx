@@ -20,6 +20,7 @@ import {
     ShieldAlert,
     Radar
 } from 'lucide-react';
+import { LinkedInIcon } from './LinkedInFormatterModal';
 
 interface CvSummaryCardProps {
     analysis: CvAnalysis | null;
@@ -29,6 +30,7 @@ interface CvSummaryCardProps {
     onRegenerate: () => void;
     onExploreField?: (field: string) => void;
     onNavigateToRadar?: () => void;
+    onOpenLinkedIn?: () => void;
     compact?: boolean;
 }
 
@@ -42,6 +44,7 @@ export const CvSummaryCard: React.FC<CvSummaryCardProps> = ({
     onRegenerate,
     onExploreField,
     onNavigateToRadar,
+    onOpenLinkedIn,
     compact = false,
 }) => {
     const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
@@ -169,6 +172,17 @@ export const CvSummaryCard: React.FC<CvSummaryCardProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {onOpenLinkedIn && (
+                        <button
+                            type="button"
+                            onClick={onOpenLinkedIn}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#0A66C2] dark:text-blue-400 bg-blue-50/90 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900 rounded-xl border border-blue-200 dark:border-blue-800 transition-all shadow-2xs"
+                            title="Format active CV profile for LinkedIn About & Experience"
+                        >
+                            <LinkedInIcon className="w-3.5 h-3.5" />
+                            <span>LinkedIn Text</span>
+                        </button>
+                    )}
                     {onNavigateToRadar && (
                         <button
                             type="button"

@@ -30,6 +30,7 @@ interface ScholarshipCardProps {
     onToggleBookmark?: (scholarshipId: string) => void;
     onUpdateStage?: (scholarshipId: string, stage: Scholarship['stage']) => void;
     onUpdateNotes?: (scholarshipId: string, notes: string) => void;
+    onOpenGoogleScholar?: (scholarship: Scholarship) => void;
 }
 
 const countryFlags: { [key: string]: { flag: string; color: string; bg: string } } = {
@@ -85,6 +86,7 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
     onToggleBookmark,
     onUpdateStage,
     onUpdateNotes,
+    onOpenGoogleScholar,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isEditingDeadline, setIsEditingDeadline] = useState(false);
@@ -223,9 +225,26 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
 
                 {/* Professor / Lab Title & Institution */}
                 <div>
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-snug">
-                        {scholarship.professorName}
-                    </h3>
+                    <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-snug">
+                            {scholarship.professorName}
+                        </h3>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (onOpenGoogleScholar) {
+                                    onOpenGoogleScholar(scholarship);
+                                } else {
+                                    window.open(`https://scholar.google.com/scholar?q=${encodeURIComponent(`${scholarship.professorName} ${scholarship.institution}`)}`, '_blank');
+                                }
+                            }}
+                            className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-[#1a73e8] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900 border border-blue-200/80 dark:border-blue-900 transition-colors shadow-2xs cursor-pointer"
+                            title="Explore professor papers & citations on Google Scholar"
+                        >
+                            <GraduationCap className="w-3 h-3 text-[#4285F4]" />
+                            <span>Scholar</span>
+                        </button>
+                    </div>
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 mt-1">
                         <GraduationCap className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                         <span>{scholarship.institution}</span>
@@ -387,17 +406,36 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
             </div>
 
             {/* Bottom Actions Bar */}
-            <div className="px-5 py-4 bg-slate-50/80 dark:bg-slate-750/80 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
-                {/* Direct Link */}
-                <a
-                    href={getFullUrl(scholarship.link)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                >
-                    <span>Lab Profile</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+            <div className="px-5 py-4 bg-slate-50/80 dark:bg-slate-750/80 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                {/* Direct Link & Google Scholar */}
+                <div className="flex items-center gap-2">
+                    <a
+                        href={getFullUrl(scholarship.link)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        title="View Official Lab Profile"
+                    >
+                        <span>Lab Profile</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (onOpenGoogleScholar) {
+                                onOpenGoogleScholar(scholarship);
+                            } else {
+                                window.open(`https://scholar.google.com/scholar?q=${encodeURIComponent(`${scholarship.professorName} ${scholarship.institution}`)}`, '_blank');
+                            }
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#1a73e8] dark:text-blue-400 bg-blue-50/90 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-900 rounded-xl transition-all shadow-2xs cursor-pointer"
+                        title="Search publications and citations on Google Scholar"
+                    >
+                        <GraduationCap className="w-3.5 h-3.5 text-[#4285F4]" />
+                        <span>Google Scholar</span>
+                    </button>
+                </div>
 
                 {/* Feedback & Draft Menu */}
                 <div className="flex items-center gap-2">

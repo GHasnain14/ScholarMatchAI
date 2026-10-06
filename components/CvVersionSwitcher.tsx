@@ -23,6 +23,7 @@ import {
     Calendar,
     ArrowRight
 } from 'lucide-react';
+import { LinkedInIcon } from './LinkedInFormatterModal';
 import { CvProfile } from '../types';
 import { STARTER_CV_TEMPLATES, generateProfileId } from '../utils/cvProfileManager';
 
@@ -38,6 +39,7 @@ interface CvVersionSwitcherProps {
     isCloudSynced: boolean;
     userEmail?: string | null;
     onSignInPrompt?: () => void;
+    onOpenLinkedIn?: () => void;
 }
 
 export const CvVersionSwitcher: React.FC<CvVersionSwitcherProps> = ({
@@ -52,6 +54,7 @@ export const CvVersionSwitcher: React.FC<CvVersionSwitcherProps> = ({
     isCloudSynced,
     userEmail,
     onSignInPrompt,
+    onOpenLinkedIn,
 }) => {
     const [isLibraryOpen, setIsLibraryOpen] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -314,6 +317,19 @@ export const CvVersionSwitcher: React.FC<CvVersionSwitcherProps> = ({
                             </>
                         )}
                     </div>
+
+                    {/* LinkedIn Format Button */}
+                    {onOpenLinkedIn && (
+                        <button
+                            type="button"
+                            onClick={onOpenLinkedIn}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#0A66C2] dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-900 rounded-xl transition-colors shadow-2xs"
+                            title="Format active CV profile for LinkedIn About & Experience"
+                        >
+                            <LinkedInIcon className="w-3.5 h-3.5" />
+                            <span>LinkedIn Text</span>
+                        </button>
+                    )}
 
                     {/* Manage Library Button */}
                     <button

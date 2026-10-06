@@ -8,6 +8,14 @@ import {
     synthesizeMasterProgramsFallback,
     synthesizeCurriculumMotivationLetterFallback
 } from "./serverMasterPrograms";
+import {
+    linkedInSchema,
+    synthesizeLinkedInFallback
+} from "./serverLinkedIn";
+import {
+    searchScholarPapers,
+    getScholarAuthorProfileData
+} from "./serverScholar";
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -1353,6 +1361,123 @@ STRICT WRITING DIRECTIVES:
             console.error("Error in /api/craft-curriculum-motivation-letter:", error);
             const fallbackResponse = synthesizeCurriculumMotivationLetterFallback(req.body?.program || {}, req.body?.cvText || "", req.body?.tone);
             return res.json(fallbackResponse);
+        }
+    });
+
+    // Generate Formatted LinkedIn Text Blocks (About, Experience, Headlines, Skills)
+    app.post("/api/generate-linkedin-blocks", async (req: Request, res: Response) => {
+        try {
+            const {
+                cvText,
+                profileName = "Academic Candidate",
+                targetField = "Academic Research",
+                targetInstitutions = "",
+                useEmojis = true,
+                customInstructions = ""
+            } = req.body;
+
+            if (!cvText || typeof cvText !== "string" || cvText.trim().length === 0) {
+                return res.status(400).json({ error: "CV text is required to format for LinkedIn." });
+            }
+
+            const prompt = `You are a world-class academic career strategist and LinkedIn profile optimization expert.
+Your mission is to take this candidate's active academic CV profile and synthesize professionally formatted text blocks optimized specifically for copying and pasting directly into LinkedIn's "About" and "Experience" sections.
+
+CANDIDATE ACTIVE PROFILE:
+- Profile Name: ${profileName}
+- Target Field / Disciplinary Focus: ${targetField}
+${targetInstitutions ? `- Target Universities / Labs: ${targetInstitutions}\n` : ""}
+${customInstructions ? `- User Custom Request: ${customInstructions}\n` : ""}
+
+CANDIDATE CV TEXT:
+${cvText}
+
+OUTPUT DIRECTIVES:
+1. headlineIdeas: 3 tailored LinkedIn headlines under 220 characters (concise, searchable, high-converting).
+2. aboutAcademic: LinkedIn "About" section crafted for faculty, PIs, PhD admissions, and academic peers (< 2,200 chars).
+   - Hook headline (e.g. 🔬 Researcher | PhD Candidate...)
+   - Research vision & driving questions
+   - Core research & technical competencies with clean bullets
+   - Selected publications, preprints, or major awards
+   - Clear networking CTA (fellowships, collaborations, symposiums)
+3. aboutIndustry: LinkedIn "About" section crafted for industrial R&D, tech hiring managers, and applied science (< 2,000 chars).
+   - Translates academic achievements into tangible problem-solving, algorithms, tech stack, and impact.
+4. aboutConcise: Short, punchy summary under 1,200 characters for high-density mobile scanning.
+5. experienceEntries: Array of structured experience blocks extracted from their CV (roles, fellowships, assistantships, engineering projects):
+   - roleTitle, organization, period, location (if present)
+   - bulletPoints: 3 to 4 impact-oriented bullets using strong action verbs (Engineered, Formulated, Published, Developed).
+   - skills: 3 to 5 core skills
+   - formattedBlock: Ready-to-paste text block directly formatted for LinkedIn's experience description field.
+6. experienceFormattedAll: All experience entries unified into one text block separated by clean dividers.
+7. topSkills: 6 to 8 top skills to pin on their LinkedIn profile.
+${useEmojis ? "Use tasteful, clean unicode emojis (🔬, 💡, 🛠️, 📊, 📬) to make text visually engaging and scannable." : "Do NOT use emojis; use clean bullet points (•, -) for a traditional formal look."}`;
+
+            try {
+                const response = await generateContentWithRetry({
+                    contents: prompt,
+                    config: {
+                        responseMimeType: "application/json",
+                        responseSchema: linkedInSchema,
+                        temperature: 0.4,
+                    },
+                });
+
+                if (response?.text) {
+                    const parsed = JSON.parse(response.text);
+                    if (parsed.aboutAcademic && parsed.experienceEntries) {
+                        return res.json(parsed);
+                    }
+                }
+            } catch (aiErr) {
+                console.warn("Live Gemini API call for LinkedIn blocks saturated; utilizing deterministic profile formatter:", aiErr);
+                const fallback = synthesizeLinkedInFallback(cvText, profileName, targetField, targetInstitutions, useEmojis);
+                return res.json(fallback);
+            }
+
+            const fallback = synthesizeLinkedInFallback(cvText, profileName, targetField, targetInstitutions, useEmojis);
+            return res.json(fallback);
+        } catch (error: any) {
+            console.error("Error in /api/generate-linkedin-blocks:", error);
+            const fallback = synthesizeLinkedInFallback(
+                req.body?.cvText || "",
+                req.body?.profileName,
+                req.body?.targetField,
+                req.body?.targetInstitutions,
+                req.body?.useEmojis ?? true
+            );
+            return res.json(fallback);
+        }
+    });
+
+    // Google Scholar Search API
+    app.get("/api/google-scholar/search", async (req: Request, res: Response) => {
+        try {
+            const query = String(req.query.q || req.query.query || "").trim();
+            const author = String(req.query.author || "").trim();
+            if (!query && !author) {
+                return res.status(400).json({ error: "Search query or author is required." });
+            }
+            const papers = await searchScholarPapers(query, author);
+            return res.json({ query, papers });
+        } catch (error: any) {
+            console.error("Error in /api/google-scholar/search:", error);
+            return res.status(500).json({ error: "Failed to search Google Scholar papers." });
+        }
+    });
+
+    // Google Scholar Author Profile API
+    app.get("/api/google-scholar/author", async (req: Request, res: Response) => {
+        try {
+            const name = String(req.query.name || "").trim();
+            const institution = String(req.query.institution || "").trim();
+            if (!name) {
+                return res.status(400).json({ error: "Author name is required." });
+            }
+            const profile = await getScholarAuthorProfileData(name, institution);
+            return res.json({ profile });
+        } catch (error: any) {
+            console.error("Error in /api/google-scholar/author:", error);
+            return res.status(500).json({ error: "Failed to fetch Google Scholar author profile." });
         }
     });
 

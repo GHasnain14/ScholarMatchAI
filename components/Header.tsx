@@ -31,6 +31,7 @@ interface HeaderProps {
     onSignOut: () => void;
     cvVersionsCount?: number;
     onOpenCvLibrary?: () => void;
+    onOpenGoogleScholar?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -46,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
     onSignOut,
     cvVersionsCount = 1,
     onOpenCvLibrary,
+    onOpenGoogleScholar,
 }) => {
     const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -213,6 +215,19 @@ export const Header: React.FC<HeaderProps> = ({
                             ))}
                         </div>
 
+                        {/* Google Scholar Quick Trigger */}
+                        {onOpenGoogleScholar && (
+                            <button
+                                type="button"
+                                onClick={onOpenGoogleScholar}
+                                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200/90 dark:border-slate-700 shadow-2xs hover:border-blue-400 dark:hover:border-blue-600 transition-colors ml-1 cursor-pointer"
+                                title="Explore Google Scholar papers, citations, and author profiles"
+                            >
+                                <GraduationCap className="w-3.5 h-3.5 text-[#4285F4]" />
+                                <span>Google Scholar</span>
+                            </button>
+                        )}
+
                         {/* Desktop Firebase Google Auth Button */}
                         <div className="hidden md:flex items-center ml-2 pl-3 border-l border-slate-200 dark:border-slate-700 relative">
                             {currentUser ? (
@@ -278,6 +293,25 @@ export const Header: React.FC<HeaderProps> = ({
                                                         </span>
                                                         <span className="text-[10px] font-bold text-slate-400">
                                                             {cvVersionsCount}
+                                                        </span>
+                                                    </button>
+                                                )}
+
+                                                {onOpenGoogleScholar && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setUserMenuOpen(false);
+                                                            onOpenGoogleScholar();
+                                                        }}
+                                                        className="w-full text-left px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg flex items-center justify-between"
+                                                    >
+                                                        <span className="flex items-center gap-1.5">
+                                                            <GraduationCap className="w-3.5 h-3.5 text-[#4285F4]" />
+                                                            Google Scholar Explorer
+                                                        </span>
+                                                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                                                            Papers
                                                         </span>
                                                     </button>
                                                 )}

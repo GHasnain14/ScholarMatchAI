@@ -10,6 +10,8 @@ import { ApplicationTracker } from './components/ApplicationTracker';
 import { WatermarkRemover } from './components/WatermarkRemover';
 import { MasterProgramsExplorer } from './components/MasterProgramsExplorer';
 import { DeadlineNotificationCenter } from './components/DeadlineNotificationCenter';
+import { LinkedInFormatterModal, LinkedInIcon } from './components/LinkedInFormatterModal';
+import { GoogleScholarModal, GoogleScholarIcon } from './components/GoogleScholarModal';
 import { 
     checkAndTrigger3DayNotifications, 
     requestBrowserNotificationPermission, 
@@ -73,7 +75,9 @@ import {
     RefreshCw,
     Filter,
     Flame,
-    ShieldCheck
+    ShieldCheck,
+    GraduationCap,
+    Clock
 } from 'lucide-react';
 import { exportAllDocumentsDossierToPdf } from './utils/pdfExport';
 import confetti from 'canvas-confetti';
@@ -167,6 +171,21 @@ const App: React.FC = () => {
     const [draftFeedback, setDraftFeedback] = useState<string>('');
     const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
     const [watermarkInitialText, setWatermarkInitialText] = useState<string>('');
+    const [isLinkedInModalOpen, setIsLinkedInModalOpen] = useState<boolean>(false);
+
+    // Google Scholar Search & Paper Explorer State
+    const [isGoogleScholarModalOpen, setIsGoogleScholarModalOpen] = useState<boolean>(false);
+    const [scholarModalQuery, setScholarModalQuery] = useState<string>('');
+    const [scholarModalAuthor, setScholarModalAuthor] = useState<string>('');
+    const [scholarModalInstitution, setScholarModalInstitution] = useState<string>('');
+
+    // Deadlines Tab sorting state
+    const [deadlineSortOrder, setDeadlineSortOrder] = useState<'soonest' | 'farthest'>('soonest');
+
+    // Active CV Profile memo
+    const activeProfile = useMemo(() => {
+        return profiles.find(p => p.id === activeProfileId) || profiles[0] || null;
+    }, [profiles, activeProfileId]);
 
     // Search and Filtering State
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -761,6 +780,23 @@ const App: React.FC = () => {
         handleDraftDocument(docType, details);
     }, [handleDraftDocument]);
 
+    // Google Scholar Explorer Handlers
+    const handleOpenGoogleScholar = useCallback((query: string = '', author: string = '', inst: string = '') => {
+        setScholarModalQuery(query);
+        setScholarModalAuthor(author);
+        setScholarModalInstitution(inst);
+        setIsGoogleScholarModalOpen(true);
+    }, []);
+
+    const handleInsertScholarCitationIntoDraft = useCallback((citationText: string) => {
+        setPositionDetails(prev => {
+            const addition = `\n\n[RELEVANT PUBLICATION CITED]:\n${citationText}`;
+            return prev ? `${prev}${addition}` : citationText;
+        });
+        setActiveTab(Tab.DraftDocuments);
+        setIsGoogleScholarModalOpen(false);
+    }, []);
+
     // Filter scholarships based on search query, tier, score, and bookmarked
     const filteredScholarships = useMemo(() => {
         return scholarships.filter(s => {
@@ -779,7 +815,19 @@ const App: React.FC = () => {
     }, [scholarships, searchQuery, selectedTierFilter, minMatchScore, onlyBookmarked]);
 
     const bookmarkedCount = scholarships.filter(s => s.bookmarked).length;
-    const upcomingDeadlines = scholarships.filter(s => s.deadline);
+
+    // Upcoming deadlines sorted by user preference (Soonest First vs Farthest First)
+    const upcomingDeadlines = useMemo(() => {
+        const withDeadlines = scholarships.filter(s => Boolean(s.deadline));
+        return [...withDeadlines].sort((a, b) => {
+            const timeA = new Date(a.deadline!).getTime();
+            const timeB = new Date(b.deadline!).getTime();
+            if (isNaN(timeA) && isNaN(timeB)) return 0;
+            if (isNaN(timeA)) return 1;
+            if (isNaN(timeB)) return -1;
+            return deadlineSortOrder === 'soonest' ? timeA - timeB : timeB - timeA;
+        });
+    }, [scholarships, deadlineSortOrder]);
 
     // Grouping by Tier
     const groupedScholarships = useMemo(() => {
@@ -895,6 +943,7 @@ const App: React.FC = () => {
                     onSignIn={handleSignIn}
                     onSignOut={handleSignOut}
                     cvVersionsCount={profiles.length}
+                    onOpenGoogleScholar={() => handleOpenGoogleScholar(searchQuery || 'Academic Research', '', '')}
                 />
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
@@ -914,6 +963,16 @@ const App: React.FC = () => {
                                 </p>
                             </div>
                         </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsLinkedInModalOpen(true)}
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#0A66C2] hover:bg-[#084e96] transition-all shadow-md shadow-[#0A66C2]/20 active:scale-95 cursor-pointer"
+                            title="Generate formatted text block for LinkedIn About & Experience"
+                        >
+                            <LinkedInIcon className="w-4 h-4" />
+                            <span>LinkedIn Profile Optimizer</span>
+                        </button>
                     </div>
 
                     {/* CV Version Switcher & Multi-field Library */}
@@ -929,6 +988,7 @@ const App: React.FC = () => {
                         isCloudSynced={Boolean(currentUser)}
                         userEmail={currentUser?.email}
                         onSignInPrompt={handleSignIn}
+                        onOpenLinkedIn={() => setIsLinkedInModalOpen(true)}
                     />
 
                     <CVUploader 
@@ -950,6 +1010,7 @@ const App: React.FC = () => {
                                     setActiveTab(Tab.FindPositions);
                                 }}
                                 onNavigateToRadar={() => setActiveTab(Tab.CvInsights)}
+                                onOpenLinkedIn={() => setIsLinkedInModalOpen(true)}
                                 compact={true}
                             />
                         </div>
@@ -1199,6 +1260,7 @@ const App: React.FC = () => {
                                                         onToggleBookmark={handleToggleBookmark}
                                                         onUpdateStage={handleUpdateStage}
                                                         onUpdateNotes={handleUpdateNotes}
+                                                        onOpenGoogleScholar={(s) => handleOpenGoogleScholar('', s.professorName, s.institution)}
                                                     />
                                                 ))}
                                             </div>
@@ -1237,6 +1299,7 @@ const App: React.FC = () => {
                                 isLoading={isGeneratingSummary}
                                 error={summaryError}
                                 onRegenerate={handleRegenerateSummary}
+                                onOpenLinkedIn={() => setIsLinkedInModalOpen(true)}
                             />
                         </div>
                     )}
@@ -1246,9 +1309,20 @@ const App: React.FC = () => {
                         <div className="space-y-6">
                             <div className="rounded-3xl bg-white dark:bg-slate-850 p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-md space-y-6">
                                 <div>
-                                    <label htmlFor="positionDetails" className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-                                        Target Professor, Lab, or University Details
-                                    </label>
+                                    <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                                        <label htmlFor="positionDetails" className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                            Target Professor, Lab, or University Details
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenGoogleScholar(positionDetails || 'Academic Research', '', '')}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-[#1a73e8] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-900 transition-colors shadow-2xs cursor-pointer"
+                                            title="Search Google Scholar to find papers and insert citations into your letter"
+                                        >
+                                            <GraduationCap className="w-3.5 h-3.5 text-[#4285F4]" />
+                                            <span>Find & Cite Scholar Papers</span>
+                                        </button>
+                                    </div>
                                     <textarea
                                         id="positionDetails"
                                         value={positionDetails}
@@ -1423,6 +1497,41 @@ const App: React.FC = () => {
                                         Calendar countdowns and funding submission deadlines with active 3-day browser push alerts.
                                     </p>
                                 </div>
+
+                                {/* Sorting Toggle: Soonest First vs Farthest First */}
+                                {upcomingDeadlines.length > 0 && (
+                                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/90 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2">
+                                            Order:
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDeadlineSortOrder('soonest')}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                                deadlineSortOrder === 'soonest'
+                                                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs ring-1 ring-slate-200/90 dark:ring-slate-600'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                            }`}
+                                            title="Order deadlines with soonest upcoming dates first"
+                                        >
+                                            <Clock className="w-3.5 h-3.5 text-blue-500" />
+                                            <span>Soonest First</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDeadlineSortOrder('farthest')}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                                deadlineSortOrder === 'farthest'
+                                                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs ring-1 ring-slate-200/90 dark:ring-slate-600'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                            }`}
+                                            title="Order deadlines with farthest dates first"
+                                        >
+                                            <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                                            <span>Farthest First</span>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             {upcomingDeadlines.length === 0 ? (
@@ -1449,6 +1558,7 @@ const App: React.FC = () => {
                                             onToggleBookmark={handleToggleBookmark}
                                             onUpdateStage={handleUpdateStage}
                                             onUpdateNotes={handleUpdateNotes}
+                                            onOpenGoogleScholar={(s) => handleOpenGoogleScholar('', s.professorName, s.institution)}
                                         />
                                     ))}
                                 </div>
@@ -1458,6 +1568,25 @@ const App: React.FC = () => {
                 </section>
             </main>
             </div>
+
+            {/* LinkedIn Profile Text Optimizer Modal */}
+            <LinkedInFormatterModal
+                isOpen={isLinkedInModalOpen}
+                onClose={() => setIsLinkedInModalOpen(false)}
+                activeProfile={activeProfile}
+                cvText={cvText}
+                cvAnalysis={cvAnalysis}
+            />
+
+            {/* Google Scholar Paper & Citation Explorer Modal */}
+            <GoogleScholarModal
+                isOpen={isGoogleScholarModalOpen}
+                onClose={() => setIsGoogleScholarModalOpen(false)}
+                initialQuery={scholarModalQuery}
+                initialAuthor={scholarModalAuthor}
+                initialInstitution={scholarModalInstitution}
+                onInsertCitationIntoDraft={handleInsertScholarCitationIntoDraft}
+            />
         </div>
     );
 };
