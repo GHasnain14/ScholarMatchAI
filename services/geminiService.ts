@@ -75,80 +75,83 @@ export const generateCvSummary = async (cvText: string): Promise<string> => {
 const getPositions = async (
     cvText: string, 
     prompt: string, 
-    feedbackContext?: string
+    feedbackContext?: string,
+    targetCountry?: string
 ): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
     const res = await postWithStaticFallback<{ positions?: Omit<Scholarship, 'id' | 'feedback'>[] }>(
         '/api/find-positions',
-        { cvText, prompt, feedbackContext },
-        () => ({ positions: synthesizeClientPositions(cvText, prompt) })
+        { cvText, prompt, feedbackContext, targetCountry },
+        () => ({ positions: synthesizeClientPositions(cvText, prompt, targetCountry) })
     );
 
-    return Array.isArray(res.positions) ? res.positions : synthesizeClientPositions(cvText, prompt);
+    return Array.isArray(res.positions) && res.positions.length > 0 
+        ? res.positions 
+        : synthesizeClientPositions(cvText, prompt, targetCountry);
 };
 
 export const findPositions = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and identify at least 15 funded Master’s or PhD research positions, laboratories, and active professor openings worldwide. Focus on high compatibility with the candidate's background. For each position provide: professor/lab name, institution, research subfield, direct URL, reason for match, university tier ('Top-Tier', 'Mid-Tier', 'Low-Rank'), country name, estimated matchScore (75-99), funding status (e.g. 'Fully Funded', 'Research Assistantship', 'Fellowship'), and 3-4 key subfield keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and identify at least 15 funded Master’s or PhD research positions, laboratories, and active professor openings worldwide across all university tiers.`;
+    return getPositions(cvText, prompt, feedbackContext, 'global');
 };
 
 export const findPositionsInUSA = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 15 Master’s/PhD research assistantships (RA/TA) and funded lab positions in the United States (e.g. NSF/NIH funded labs, R1/R2 universities). Include professor names, institution, research focus, direct URL, match reason, tier ('Top-Tier', 'Mid-Tier', 'Low-Rank'), matchScore (75-99), country: 'USA', fundingType, and key keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 15 Master’s/PhD research assistantships (RA/TA) and funded lab positions in the United States across Top-Tier, Mid-Tier, and High-Acceptance Regional universities.`;
+    return getPositions(cvText, prompt, feedbackContext, 'usa');
 };
 
 export const findPositionsInCanada = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s/PhD research positions across Canadian universities (U15 group and regional centers, NSERC/SSHRC labs). Include professor names, institution, research focus, direct lab link, tier, matchScore, country: 'Canada', fundingType, and keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s/PhD research positions across Canadian universities (U15 group and regional centers, NSERC/SSHRC labs) spanning all tiers.`;
+    return getPositions(cvText, prompt, feedbackContext, 'canada');
 };
 
 export const findPositionsInUK = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s/PhD research opportunities and studentships in the United Kingdom (Russell Group, UKRI, EPSRC/BBSRC funded labs). Include professor names, institution, research subfields, direct URL, tier, matchScore, country: 'UK', fundingType, and keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s/PhD research opportunities and studentships in the United Kingdom (Russell Group, UKRI, EPSRC/BBSRC funded labs) across each tier.`;
+    return getPositions(cvText, prompt, feedbackContext, 'uk');
 };
 
 export const findPositionsInGermany = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s/PhD research positions in Germany (Max Planck, Helmholtz, Fraunhofer, TU9, and German Universities with DFG/DAAD funding). Include professor/group name, institution, research area, direct link, tier, matchScore, country: 'Germany', fundingType (e.g. TV-L E13 / DAAD), and keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s/PhD research positions in Germany (Max Planck, Helmholtz, Fraunhofer, TU9, and German Universities with DFG/DAAD funding) across each tier.`;
+    return getPositions(cvText, prompt, feedbackContext, 'germany');
 };
 
 export const findPositionsInKorea = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s/PhD research lab positions in South Korea (KAIST, Seoul National Univ, POSTECH, UNIST, Yonsei, Korea Univ, GIST, etc. with BK21+ or lab stipend). Include professor names, institution, research focus, direct lab link, tier, matchScore, country: 'South Korea', fundingType, and keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s/PhD research lab positions in South Korea (KAIST, Seoul National Univ, POSTECH, UNIST, Yonsei, Korea Univ, GIST, Chungnam National, Pusan National, etc. with BK21+ or lab stipend) across each university tier.`;
+    return getPositions(cvText, prompt, feedbackContext, 'south-korea');
 };
 
 export const findPositionsInJapan = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 15 Master’s/PhD research opportunities and labs in Japan (Univ of Tokyo, Kyoto, Tokyo Tech, Osaka, Tohoku, RIKEN, with MEXT/JSPS scholarship compatibility). Include professor names, institution, research focus, direct URL, tier, matchScore, country: 'Japan', fundingType, and keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 15 Master’s/PhD research opportunities and labs in Japan (Univ of Tokyo, Kyoto, Tokyo Tech, Osaka, Tohoku, RIKEN, with MEXT/JSPS scholarship compatibility) across each tier.`;
+    return getPositions(cvText, prompt, feedbackContext, 'japan');
 };
 
 export const findPositionsInFrance = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 15 suitable Master’s/PhD lab opportunities in France (CNRS, INRIA, Institut Polytechnique de Paris, Sorbonne, PSL, Université Paris-Saclay). Include professor names, institution, research areas, direct link, tier, matchScore, country: 'France', fundingType, and keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 15 suitable Master’s/PhD lab opportunities in France (CNRS, INRIA, Institut Polytechnique de Paris, Sorbonne, PSL, Université Paris-Saclay) across each tier.`;
+    return getPositions(cvText, prompt, feedbackContext, 'france');
 };
 
 export const findErasmusMundusPositions = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 15 premier Erasmus Mundus Joint Master’s Degree (EMJMD) programmes funded by the European Commission. Provide the full programme name in 'professorName', coordinating university in 'institution', specialization track in 'researchArea', direct website URL, match rationale, tier, country: 'European Union (EMJMD)', matchScore (80-99), and fundingType: 'Fully Funded (EU Scholarship)'.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 15 premier Erasmus Mundus Joint Master’s Degree (EMJMD) programmes funded by the European Commission across all tiers.`;
+    return getPositions(cvText, prompt, feedbackContext, 'erasmus-mundus');
 };
 
 export const findPositionsInAustralia = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s by Research and PhD positions in Australia (Group of Eight universities: Melbourne, ANU, Sydney, UNSW, UQ, Monash, etc. with RTP/RPS stipends). Include supervisor name, institution, research field, link, tier, matchScore, country: 'Australia', fundingType, and keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 15 funded Master’s by Research and PhD positions in Australia (Group of Eight universities: Melbourne, ANU, Sydney, UNSW, UQ, Monash, etc. with RTP/RPS stipends) across each tier.`;
+    return getPositions(cvText, prompt, feedbackContext, 'australia');
 };
 
 export const findPositionsInSingapore = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 12 funded graduate research lab positions in Singapore (NUS, NTU, SMU, A*STAR institutes). Include professor names, institution, research focus, direct lab link, tier, matchScore, country: 'Singapore', fundingType (e.g. SINGA / Research Scholarship), and keywords.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 12 funded graduate research lab positions in Singapore (NUS, NTU, SMU, A*STAR institutes) across each tier.`;
+    return getPositions(cvText, prompt, feedbackContext, 'singapore');
 };
 
 export const findPositionsInPoland = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 12 suitable Master’s/PhD research opportunities in Poland (University of Warsaw, Jagiellonian Univ, Warsaw Univ of Technology, NAWA/NCN grants). Provide professor/program name, institution, research area, link, match rationale, tier, country: 'Poland', matchScore, tuitionFees, ranking, and application requirements.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 12 suitable Master’s/PhD research opportunities in Poland (University of Warsaw, Jagiellonian Univ, Warsaw Univ of Technology, NAWA/NCN grants) across each tier.`;
+    return getPositions(cvText, prompt, feedbackContext, 'poland');
 };
 
 export const findPositionsInBelgium = (cvText: string, feedbackContext?: string): Promise<Omit<Scholarship, 'id' | 'feedback'>[]> => {
-    const prompt = `Analyze the candidate's CV and find at least 12 suitable Master’s/PhD research positions in Belgium (KU Leuven, Ghent University, UCLouvain, ULB, VUB, FWO/FNRS fellowships). Provide professor name, institution, research field, link, match reason, tier, country: 'Belgium', matchScore, tuitionFees, ranking, and application requirements.`;
-    return getPositions(cvText, prompt, feedbackContext);
+    const prompt = `Analyze the candidate's CV and find at least 12 suitable Master’s/PhD research positions in Belgium (KU Leuven, Ghent University, UCLouvain, ULB, VUB, FWO/FNRS fellowships) across each tier.`;
+    return getPositions(cvText, prompt, feedbackContext, 'belgium');
 };
 
 const getDocumentPrompt = (docType: DocumentType, englishLevel: number): string => {

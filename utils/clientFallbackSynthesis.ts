@@ -8,6 +8,7 @@ import {
     ScholarPaper,
     ScholarAuthorProfile 
 } from '../types';
+import { getCuratedPositionsForCountry } from './academicPositionsDatabase';
 
 /**
  * Client-Side Academic Profile Analysis Synthesizer
@@ -117,204 +118,13 @@ export function synthesizeClientCvAnalysis(cvText: string): CvAnalysis {
 /**
  * Intelligent Academic Lab & Scholarship Opportunity Matching Synthesizer
  */
-export function synthesizeClientPositions(cvText: string, prompt: string): Omit<Scholarship, 'id' | 'feedback'>[] {
-    const textLower = ((cvText || '') + " " + (prompt || '')).toLowerCase();
-    const isUSA = textLower.includes("usa") || textLower.includes("united states");
-    const isCanada = textLower.includes("canada");
-    const isGermany = textLower.includes("germany");
-    const isUK = textLower.includes("uk") || textLower.includes("united kingdom");
-    const isKorea = textLower.includes("korea") || textLower.includes("south korea");
-    const isJapan = textLower.includes("japan");
-    const isFrance = textLower.includes("france");
-    const isErasmus = textLower.includes("erasmus") || textLower.includes("emjmd");
-    const isAustralia = textLower.includes("australia");
-    const isSingapore = textLower.includes("singapore");
-    const isPoland = textLower.includes("poland");
-    const isBelgium = textLower.includes("belgium");
-
-    if (isErasmus) {
-        return [
-            {
-                professorName: "BDMA - Big Data Management and Analytics (EMJMD)",
-                institution: "ULB (Belgium), UPC (Spain), TU Berlin (Germany), CentraleSupélec (France)",
-                researchArea: "Large-Scale Data Engineering, Distributed AI, Cloud Analytics",
-                link: "https://bdma.ulb.ac.be",
-                reasonForMatch: "Candidate's strong computational foundation and data background match BDMA's multi-university international consortium track.",
-                universityTier: "Top-Tier",
-                country: "European Union (EMJMD)",
-                matchScore: 97,
-                fundingType: "Fully Funded (EU Scholarship - €1,400/mo + Fee Waiver)",
-                keyKeywords: ["Distributed Systems", "Cloud AI", "Data Pipelines", "EMJMD"],
-                tuitionFees: "100% Waived by Erasmus+ Grant",
-                ranking: "Consortium of Top European Research Universities",
-                applicationRequirements: ["BSc in CS/Math/Engineering", "IELTS 6.5+ / TOEFL 90+", "2 Academic Reference Letters"]
-            },
-            {
-                professorName: "GENIAL - Green Embedded Neural Intelligence (EMJMD)",
-                institution: "Univ of Perpignan (France), Univ of Extremadura (Spain), Univ of Applied Sciences Upper Austria",
-                researchArea: "Edge AI, Low-Power Embedded Computing, Green Computing",
-                link: "https://master-genial.eu",
-                reasonForMatch: "Direct match with candidate's programming skills and interest in sustainable edge computing and hardware acceleration.",
-                universityTier: "Top-Tier",
-                country: "European Union (EMJMD)",
-                matchScore: 94,
-                fundingType: "Fully Funded (Erasmus Mundus Grant)",
-                keyKeywords: ["Edge Computing", "Neural Acceleration", "Embedded Systems"],
-                tuitionFees: "Fully Funded / Zero Tuition",
-                ranking: "European Commission Excellence Flagship",
-                applicationRequirements: ["Bachelor degree in STEM", "Motivation Letter", "CV (Europass)"]
-            },
-            {
-                professorName: "BioData - Computational Biology and Biomedicine (EMJMD)",
-                institution: "Sorbonne Université (France), Uppsala University (Sweden), University of Lisbon (Portugal)",
-                researchArea: "Bioinformatics, Machine Learning in Healthcare, Precision Genomics",
-                link: "https://master-biodata.eu",
-                reasonForMatch: "Ideal for applying machine learning and quantitative modeling to biological datasets and health informatics.",
-                universityTier: "Top-Tier",
-                country: "European Union (EMJMD)",
-                matchScore: 92,
-                fundingType: "Fully Funded (€1,400/month stipend)",
-                keyKeywords: ["Computational Biology", "Genomics", "AI in Health"],
-                tuitionFees: "Full Tuition Covered",
-                ranking: "Top European Life Sciences Consortium",
-                applicationRequirements: ["Relevant STEM/Life Science Bachelor", "English Proficiency", "Statement of Purpose"]
-            }
-        ];
-    }
-
-    if (isGermany) {
-        return [
-            {
-                professorName: "Prof. Dr. Daniel Cremers",
-                institution: "Technical University of Munich (TUM) - Computer Vision Group",
-                researchArea: "3D Reconstruction, Visual SLAM, Real-Time Deep Perception",
-                link: "https://cvg.cit.tum.de",
-                reasonForMatch: "Synergy with candidate's programming competencies and passion for autonomous visual systems.",
-                universityTier: "Top-Tier",
-                country: "Germany",
-                matchScore: 96,
-                fundingType: "Fully Funded (TV-L E13 ~€52,000/yr / DAAD Grant)",
-                keyKeywords: ["Visual SLAM", "3D Computer Vision", "TUM", "Autonomous Systems"],
-                tuitionFees: "Zero Tuition (Only ~€150/semester fee)",
-                ranking: "QS #28 Worldwide, #1 in Germany",
-                applicationRequirements: ["BSc/MSc in STEM", "C++/Python proficiency", "Cover Letter & Transcripts"]
-            },
-            {
-                professorName: "Prof. Dr. Bernhard Schölkopf & Prof. Michael J. Black",
-                institution: "Max Planck Institute for Intelligent Systems (MPI-IS) & ELLIS Munich/Tübingen",
-                researchArea: "Causal Representation Learning, Empirical Machine Learning Foundations",
-                link: "https://is.mpg.de",
-                reasonForMatch: "Candidate's rigorous algorithmic grounding is tailored for MPI's world-leading doctoral academy.",
-                universityTier: "Top-Tier",
-                country: "Germany",
-                matchScore: 98,
-                fundingType: "Fully Funded (Max Planck Doctoral Contract ~€2,500/mo net)",
-                keyKeywords: ["Causality", "Representation Learning", "MPI-IS", "ELLIS"],
-                tuitionFees: "No Tuition Fees",
-                ranking: "Global Flagship Research Institute",
-                applicationRequirements: ["Outstanding Bachelor/Master's in Math or CS", "Strong Research Sample"]
-            },
-            {
-                professorName: "Prof. Dr. Frank Hutter",
-                institution: "University of Freiburg - Machine Learning Lab",
-                researchArea: "Automated Machine Learning (AutoML), Neural Architecture Search",
-                link: "https://www.automl.org",
-                reasonForMatch: "High suitability with candidate's empirical benchmarking and optimization toolkit.",
-                universityTier: "Top-Tier",
-                country: "Germany",
-                matchScore: 94,
-                fundingType: "Fully Funded (DFG Research Grant / TV-L E13)",
-                keyKeywords: ["AutoML", "Hyperparameter Optimization", "Freiburg"],
-                tuitionFees: "Tuition Free for Doctoral Studies",
-                ranking: "World-Leading Center for AutoML",
-                applicationRequirements: ["Master's in Computer Science", "Deep PyTorch Experience"]
-            }
-        ];
-    }
-
-    if (isUSA) {
-        return [
-            {
-                professorName: "Prof. Chelsea Finn",
-                institution: "Stanford University - Stanford Artificial Intelligence Laboratory (SAIL)",
-                researchArea: "Meta-Learning, Robotic Manipulation, Multimodal Foundation Models",
-                link: "https://ai.stanford.edu/~cbfinn/",
-                reasonForMatch: "Candidate's solid mathematical basis and coding proficiency match Stanford's robot learning objectives.",
-                universityTier: "Top-Tier",
-                country: "USA",
-                matchScore: 95,
-                fundingType: "Fully Funded (Graduate Research Assistantship $42,000/yr + 100% Tuition Waiver)",
-                keyKeywords: ["Meta-Learning", "Few-Shot Learning", "Stanford AI"],
-                tuitionFees: "Full Tuition Remission",
-                ranking: "Top 3 Worldwide",
-                applicationRequirements: ["BSc in Computer Science or Electrical Engineering", "Transcripts", "CV"]
-            },
-            {
-                professorName: "Prof. Graham Neubig",
-                institution: "Carnegie Mellon University (CMU) - Language Technologies Institute",
-                researchArea: "Natural Language Processing, Large Language Models, Code Intelligence",
-                link: "https://www.phontron.com",
-                reasonForMatch: "High suitability for candidate's interest in modern NLP architectures, code intelligence, and reasoning.",
-                universityTier: "Top-Tier",
-                country: "USA",
-                matchScore: 93,
-                fundingType: "Fully Funded (CMU Graduate RA $38,000/yr + Health Insurance)",
-                keyKeywords: ["NLP", "LLM Reasoning", "Code Generation", "CMU LTI"],
-                tuitionFees: "100% Waived",
-                ranking: "Top Tier AI & NLP Research Institute",
-                applicationRequirements: ["Strong proficiency in Python/PyTorch", "Research sample or GitHub portfolio"]
-            }
-        ];
-    }
-
-    // Default global high-tier opportunity set
-    return [
-        {
-            professorName: "Prof. Max Welling",
-            institution: "University of Amsterdam (UvA) & Qualcomm AI Research",
-            researchArea: "Equivariant Neural Networks, Geometric Deep Learning, Physics-Inspired AI",
-            link: "https://ivi.fnwi.uva.nl/uvaml/",
-            reasonForMatch: "Direct match with candidate's mathematical modeling skills and interest in foundational deep learning architectures.",
-            universityTier: "Top-Tier",
-            country: "Netherlands",
-            matchScore: 96,
-            fundingType: "Fully Funded (Dutch Collective Labor Agreement Salary €2,770-€3,539/mo)",
-            keyKeywords: ["Geometric Deep Learning", "Equivariance", "Physics AI"],
-            tuitionFees: "No Tuition (Paid Employee Status)",
-            ranking: "QS #53 Worldwide, Leading European AI Lab",
-            applicationRequirements: ["MSc in CS, Physics or Math", "Strong PyTorch experience", "CV & Transcripts"]
-        },
-        {
-            professorName: "Prof. Dr. Daniel Cremers",
-            institution: "Technical University of Munich (TUM) - Computer Vision Group",
-            researchArea: "3D Reconstruction, Visual SLAM, Real-Time Deep Perception",
-            link: "https://cvg.cit.tum.de",
-            reasonForMatch: "Synergy with candidate's programming competencies and passion for autonomous visual systems.",
-            universityTier: "Top-Tier",
-            country: "Germany",
-            matchScore: 95,
-            fundingType: "Fully Funded (TV-L E13 ~€50,000/yr / DAAD Grant)",
-            keyKeywords: ["Visual SLAM", "3D Computer Vision", "TUM"],
-            tuitionFees: "Zero Tuition (Only €150/semester fee)",
-            ranking: "QS #28 Worldwide",
-            applicationRequirements: ["BSc/MSc in STEM", "C++/Python proficiency", "Cover Letter"]
-        },
-        {
-            professorName: "Prof. Sung Ju Hwang",
-            institution: "KAIST - Graduate School of AI",
-            researchArea: "Meta-Learning, Automated Machine Learning, Deep Generative Models",
-            link: "https://gsai.kaist.ac.kr",
-            reasonForMatch: "Seamless match with candidate's analytical skill set and desire for high-impact empirical machine learning research.",
-            universityTier: "Top-Tier",
-            country: "South Korea",
-            matchScore: 94,
-            fundingType: "Fully Funded (KAIST Scholarship + Lab Research Stipend)",
-            keyKeywords: ["Meta-Learning", "AutoML", "Deep Generative Models"],
-            tuitionFees: "Zero Tuition",
-            ranking: "Top Korean Technical Institute",
-            applicationRequirements: ["Bachelor degree", "IELTS 6.5+ or equivalent", "Transcripts"]
-        }
-    ];
+export function synthesizeClientPositions(
+    cvText: string, 
+    prompt: string, 
+    targetCountry?: string
+): Omit<Scholarship, 'id' | 'feedback'>[] {
+    const countryToUse = targetCountry || '';
+    return getCuratedPositionsForCountry(countryToUse, cvText, prompt);
 }
 
 /**

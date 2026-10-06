@@ -16,6 +16,7 @@ import {
     searchScholarPapers,
     getScholarAuthorProfileData
 } from "./serverScholar";
+import { getCuratedPositionsForCountry } from "./utils/academicPositionsDatabase";
 
 let aiClient: GoogleGenAI | null = null;
 
