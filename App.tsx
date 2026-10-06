@@ -12,6 +12,7 @@ import { MasterProgramsExplorer } from './components/MasterProgramsExplorer';
 import { DeadlineNotificationCenter } from './components/DeadlineNotificationCenter';
 import { LinkedInFormatterModal, LinkedInIcon } from './components/LinkedInFormatterModal';
 import { GoogleScholarModal, GoogleScholarIcon } from './components/GoogleScholarModal';
+import { AboutSection } from './components/AboutSection';
 import { 
     checkAndTrigger3DayNotifications, 
     requestBrowserNotificationPermission, 
@@ -944,6 +945,7 @@ const App: React.FC = () => {
                     onSignOut={handleSignOut}
                     cvVersionsCount={profiles.length}
                     onOpenGoogleScholar={() => handleOpenGoogleScholar(searchQuery || 'Academic Research', '', '')}
+                    onOpenAbout={() => document.getElementById('about-section')?.scrollIntoView({ behavior: 'smooth' })}
                 />
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
@@ -1566,6 +1568,9 @@ const App: React.FC = () => {
                         </div>
                     )}
                 </section>
+
+                {/* Comprehensive About ScholarMatch AI Section */}
+                <AboutSection onNavigateToTab={setActiveTab} />
             </main>
             </div>
 
