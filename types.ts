@@ -154,7 +154,16 @@ export enum Tab {
     Deadlines = "deadlines",
 }
 
-export type WatermarkCleaningMode = 'stealth-clean' | 'academic-humanize' | 'executive-polish' | 'concise-scholarly';
+export type WatermarkCleaningMode = 'turnitin-bypass' | 'academic-humanize' | 'stealth-clean' | 'executive-polish' | 'concise-scholarly';
+
+export interface WikipediaAiTellFinding {
+    category: 'ai-vocabulary' | 'copula-avoidance' | 'negative-parallelism' | 'superficial-participle' | 'puffery-legacy' | 'didactic-hedging' | 'stego-metadata';
+    title: string;
+    wpShortcut: string;
+    description: string;
+    count: number;
+    examples: string[];
+}
 
 export interface WatermarkScanResult {
     cleanedText: string;
@@ -162,6 +171,7 @@ export interface WatermarkScanResult {
     hiddenWatermarksFound: number;
     hiddenWatermarkTypes: string[];
     aiClichesFound: { phrase: string; suggestion: string; index: number }[];
+    wikipediaTellsFound?: WikipediaAiTellFinding[];
     aiProbabilityOriginal: number;
     aiProbabilityCleaned: number;
     readabilityGrade: string;

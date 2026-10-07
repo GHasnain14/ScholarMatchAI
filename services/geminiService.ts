@@ -7,7 +7,8 @@ import {
     CurriculumMotivationLetterResponse,
     LinkedInProfileData,
     ScholarPaper,
-    ScholarAuthorProfile
+    ScholarAuthorProfile,
+    WatermarkCleaningMode
 } from '../types';
 
 import {
@@ -256,7 +257,7 @@ export const draftDocument = async (
  */
 export const cleanAndHumanizeText = async (params: {
     text: string;
-    mode?: 'stealth-clean' | 'academic-humanize' | 'executive-polish' | 'concise-scholarly';
+    mode?: WatermarkCleaningMode;
     preserveCitations?: boolean;
 }): Promise<string> => {
     const { text, mode = 'academic-humanize', preserveCitations = true } = params;

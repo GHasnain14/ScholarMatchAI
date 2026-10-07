@@ -17,6 +17,7 @@ import {
     getScholarAuthorProfileData
 } from "./serverScholar";
 import { getCuratedPositionsForCountry } from "./utils/academicPositionsDatabase";
+import { cleanWatermarksAlgorithmically } from "./utils/watermarkCleaner";
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -38,11 +39,11 @@ function getAi(): GoogleGenAI {
     return aiClient;
 }
 
-// Recommended model candidate pool in priority order (starting with highest throughput, lowest latency flash-lite)
+// Recommended model candidate pool in priority order (starting with highest throughput, lowest latency flash)
 const CANDIDATE_MODELS = [
+    "gemini-3.8-flash",
     "gemini-3.1-flash-lite",
     "gemini-flash-latest",
-    "gemini-3.7-flash",
     "gemini-3.1-pro-preview",
 ];
 
@@ -1237,7 +1238,7 @@ ${positionDetails}`;
                 return res.status(400).json({ error: "No text provided to clean." });
             }
 
-            // Step 1: Immediate invisible Unicode zero-width stripping
+            // Step 1: Immediate invisible Unicode zero-width stripping & pre-cleaning
             let preCleaned = text
                 .replace(/[\u200B-\u200D\uFEFF\u2060-\u2064\u00AD\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
                 .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ")
@@ -1246,7 +1247,8 @@ ${positionDetails}`;
                 .replace(/\u2013/g, "-")
                 .replace(/\u2014/g, " -- ")
                 .replace(/^(?:certainly!?|sure!?|absolutely!?|here\s+is\s+(?:a|the|your)\s+[^:.]+[:.]?)\s*/i, "")
-                .replace(/^(?:as\s+an\s+ai(?:\s+language\s+model)?,\s*[^:.]+[:.]?)\s*/i, "");
+                .replace(/^(?:as\s+an\s+ai(?:\s+language\s+model)?,\s*[^:.]+[:.]?)\s*/i, "")
+                .replace(/^(?:i['’]d\s+be\s+happy\s+to\s+help\s+with\s+that[:.]?)\s*/i, "");
 
             if (mode === "stealth-clean") {
                 return res.json({
@@ -1255,32 +1257,60 @@ ${positionDetails}`;
                 });
             }
 
-            // Step 2: Deep Humanization with LLM or algorithmic fallback
-            const humanizePrompt = `You are an elite academic editor and human writing stylist. 
-Your task is to thoroughly REMOVE all AI watermarks, robotic clichés, and synthetic language patterns from the text below, transforming it into authentic, natural, human-authored academic prose.
+            // Step 2: Deep Humanization with LLM or robust algorithmic fallback (Aligned with Wikipedia WP:AISIGNS / WP:AITELLS)
+            const humanizePrompt = `You are a distinguished senior academic editor and writing stylist whose sole task is to rewrite, restructure, and humanize the following text so that it reads 100% like an authentic, highly articulate human scholar and scores 0% on AI detectors (Turnitin, GPTZero, CopyLeaks, Pangram) and eliminates every sign of AI writing documented in Wikipedia's guide (WP:AISIGNS).
 
-CRITICAL INSTRUCTIONS:
-1. STRICTLY ELIMINATE all robotic AI clichés and transition markers:
-   - "In today's fast-paced/rapidly evolving world", "It is worth noting that", "It is important to remember", "Delve into", "A testament to", "Tapestry of", "Beacon of", "Foster a deep understanding", "Furthermore, it is imperative", "Plays a pivotal role in", "Embark on a journey", "Navigating the complexities of", "Holistic approach", "Unleash the potential", "Seamlessly integrate", "Paramount importance", "Catalyst for change", "Spearheading", "In conclusion".
-2. INJECT NATURAL HUMAN BURSTINESS & PERPLEXITY:
-   - Vary sentence lengths dynamically (mix concise 5-10 word statements with articulate, compound scholarly sentences).
-   - Use active voice, direct assertions, and authentic scholarly cadence.
-3. PRESERVE 100% FACTUAL ACCURACY:
-   - Retain all technical terms, names, dates, professor/university names, methodologies, and citations exactly as given.
-4. ABSOLUTELY NO CONVERSATIONAL FILLER OR INTRO/OUTRO:
-   - Output ONLY the clean, humanized academic text. No quotes, no markdown greetings, no explanations.
+CRITICAL DIRECTIVES BASED ON WIKIPEDIA "SIGNS OF AI WRITING" (WP:AISIGNS):
+1. RESTORE NATURAL HUMAN COPULAS (WP:AINOCOPULA, WP:AIREPRESENTS):
+   - AI chatbots systematically avoid simple "is", "are", "was", "has" in favor of stiff euphemisms ("serves as", "stands as", "functions as", "operates as", "marks the", "represents", "holds the distinction of", "boasts", "features").
+   - Restore natural, direct human copulative phrasing ("is", "was", "has", "there are").
 
-${preserveCitations ? "Preserve all formal academic citations and references intact.\n" : ""}
+2. ELIMINATE NEGATIVE PARALLELISMS (WP:AIPARALLEL):
+   - AI chatbots heavily overuse contrastive formulas: "not only X, but also Y", "it is not just X, it's Y", "no X, no Y, just Z", "rather than simply X, it Y".
+   - Replace with direct, affirmative human assertions.
+
+3. ELIMINATE DANGLING SUPERFICIAL PARTICIPIAL CLAUSES (WP:SUPERFICIAL):
+   - AI chatbots attach present participle ("-ing") clauses to sentence ends for superficial commentary (", highlighting its importance", ", underscoring the significance", ", reflecting broader trends", ", contributing to the ongoing debate", ", cultivating an environment").
+   - Strip these formulaic commentary tails; state claims directly.
+
+4. PURGE ALL STATISTICAL "AI VOCABULARY" (WP:AIVOCAB, WP:AIWORDS):
+   - STRICTLY BAN: delve, delving, tapestry, rich tapestry, testament, a testament to, pivotal, pivotal role, intricate, intricacies, interplay, landscape (as an abstract noun), bolster, bolstered, garner, garnered, meticulous, meticulously, vibrant, showcase, showcasing, underscore, underscores, underscoring, crucial, fostering, foster, enhance, enduring, robust, valuable insights, align with, deep dive, additionally (at sentence start).
+   - Use concrete, varied, domain-specific academic vocabulary.
+
+5. ELIMINATE UNDUE LEGACY & TREND PUFFERY (WP:AILEGACY, WP:AITREND, WP:AIPUFFERY):
+   - AI chatbots constantly puff up the subject's importance ("stands as a testament", "indelible mark", "focal point", "deeply rooted in", "setting the stage for", "key turning point", "evolving landscape", "groundbreaking", "renowned", "diverse array").
+   - Replace with objective, grounded scholarly descriptions.
+
+6. AVOID MECHANICAL RULE-OF-THREE TRIPLETS (WP:RO3):
+   - Do not mechanically group adjectives or clauses into formulaic triplets ("X, Y, and Z").
+
+7. INJECT AUTHENTIC HUMAN BURSTINESS & PERPLEXITY:
+   - LLMs output flat, uniform sentence lengths (15-20 words).
+   - Human scholars vary cadence dramatically: mix punchy 5-8 word definitive statements with articulate 22-35 word compound analytical sentences.
+
+8. ELIMINATE MECHANICAL FORMATTING & CHATBOT ARTIFACTS (WP:AIBOLD, WP:AIDASH, WP:CERTAINLY, WP:DIDACTIC):
+   - No mechanical boldface asterisks.
+   - No spaced em dashes (" — "). Use clean commas or standard hyphens.
+   - No chatbot greetings ("Certainly!", "I hope this helps", "Here is a draft").
+   - No didactic disclaimers ("It is important to remember that", "While details are scarce").
+
+9. PRESERVE 100% FACTUAL FIDELITY:
+   - Retain all technical facts, metrics, tools, library names, professor names, universities, dates, and research directions verbatim.
+   ${preserveCitations ? "- Retain all academic citations and references verbatim.\n" : ""}
+
+10. OUTPUT SPECIFICATION:
+   - Output ONLY the clean, rewritten humanized prose. No commentary, no quotes, no markdown wrappers.
+
 MODE: ${mode}
 
----TEXT TO HUMANIZE---
+---TEXT TO REWRITE & HUMANIZE---
 ${preCleaned}`;
 
             try {
                 const response = await generateContentWithRetry({
                     contents: humanizePrompt,
                     config: {
-                        temperature: 0.6,
+                        temperature: 0.65,
                     },
                 });
 
@@ -1290,23 +1320,27 @@ ${preCleaned}`;
                         .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ")
                         .trim();
 
-                    // Strip any accidental markdown formatting if it's plain text
+                    // Strip accidental code block markers
                     if (cleanedOutput.startsWith("```") && cleanedOutput.endsWith("```")) {
                         cleanedOutput = cleanedOutput.replace(/^```[a-z]*\n?/i, "").replace(/```$/, "").trim();
                     }
 
-                    return res.json({
-                        cleanedText: cleanedOutput,
-                        modeUsed: mode,
-                    });
+                    // Check that the output is actually rewritten and substantive
+                    if (cleanedOutput.length >= 10 && cleanedOutput !== preCleaned.trim()) {
+                        return res.json({
+                            cleanedText: cleanedOutput,
+                            modeUsed: mode,
+                        });
+                    }
                 }
             } catch (aiErr) {
-                console.warn("Live Gemini humanizer saturated; using algorithmic academic cleaner:", aiErr);
+                console.warn("Live Gemini humanizer saturated; using algorithmic academic cleaner fallback:", aiErr);
             }
 
-            // Algorithmic Fallback
+            // Algorithmic Fallback Engine (Guarantees actual rewriting rather than copy-paste)
+            const algorithmicCleaned = cleanWatermarksAlgorithmically(preCleaned, mode as any);
             return res.json({
-                cleanedText: preCleaned.trim(),
+                cleanedText: algorithmicCleaned || preCleaned.trim(),
                 modeUsed: mode,
             });
         } catch (error: any) {

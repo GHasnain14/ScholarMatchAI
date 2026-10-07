@@ -162,6 +162,9 @@ Sincerely,
 [GitHub / Google Scholar Portfolio Link]`;
 }
 
+import { cleanWatermarksAlgorithmically } from './watermarkCleaner';
+import { WatermarkCleaningMode } from '../types';
+
 /**
  * AI Text Cleaner & Humanizer Synthesizer
  */
@@ -170,36 +173,8 @@ export function synthesizeClientCleanText(params: {
     mode?: string;
     preserveCitations?: boolean;
 }): string {
-    let cleaned = params.text || '';
-    
-    // Remove robotic AI buzzwords
-    const roboticPatterns = [
-        /\bdelve into\b/gi,
-        /\ba testament to\b/gi,
-        /\bit is crucial to remember that\b/gi,
-        /\bin conclusion,\s*/gi,
-        /\bfurthermore,\s*/gi,
-        /\bmoreover,\s*/gi,
-        /\bseamlessly integrate\b/gi,
-        /\brobust and scalable\b/gi
-    ];
-
-    const replacements = [
-        'investigate',
-        'an indicator of',
-        'notably,',
-        'Overall, ',
-        'In addition, ',
-        'Additionally, ',
-        'integrate',
-        'reliable'
-    ];
-
-    roboticPatterns.forEach((pat, i) => {
-        cleaned = cleaned.replace(pat, replacements[i]);
-    });
-
-    return cleaned;
+    const mode = (params.mode as WatermarkCleaningMode) || 'academic-humanize';
+    return cleanWatermarksAlgorithmically(params.text || '', mode);
 }
 
 /**
