@@ -84,8 +84,36 @@ const getPositions = async (
         () => ({ positions: synthesizeClientPositions(cvText, prompt, targetCountry) })
     );
 
-    return Array.isArray(res.positions) && res.positions.length > 0 
-        ? res.positions 
+    let positions = Array.isArray(res.positions) ? [...res.positions] : [];
+
+    // Client-side geographic safeguard
+    if (targetCountry && targetCountry !== 'global' && positions.length > 0) {
+        const normTarget = targetCountry.toLowerCase();
+        if (normTarget.includes('korea')) {
+            positions = positions.filter(p => {
+                const combined = `${p.country || ''} ${p.institution || ''} ${p.professorName || ''}`.toLowerCase();
+                const isKorea = combined.includes('korea') || combined.includes('kaist') || combined.includes('snu') || combined.includes('postech') || combined.includes('yonsei') || combined.includes('unist') || combined.includes('skku') || combined.includes('gist');
+                const isUsHallucination = (combined.includes('stanford') || combined.includes('berkeley') || combined.includes('cmu') || combined.includes('mit')) && !combined.includes('korea');
+                return isKorea && !isUsHallucination;
+            });
+        }
+    }
+
+    // If result list is too short or empty, supplement from curated database
+    if (positions.length < 8) {
+        const curated = synthesizeClientPositions(cvText, prompt, targetCountry);
+        const existingNames = new Set(positions.map(p => (p.professorName || '').toLowerCase().trim()));
+        for (const item of curated) {
+            const key = (item.professorName || '').toLowerCase().trim();
+            if (!existingNames.has(key)) {
+                positions.push(item);
+                existingNames.add(key);
+            }
+        }
+    }
+
+    return positions.length > 0 
+        ? positions 
         : synthesizeClientPositions(cvText, prompt, targetCountry);
 };
 

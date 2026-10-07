@@ -61,6 +61,7 @@ export const CvVersionSwitcher: React.FC<CvVersionSwitcherProps> = ({
     const [editingProfile, setEditingProfile] = useState<CvProfile | null>(null);
     const [previewProfile, setPreviewProfile] = useState<CvProfile | null>(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
     // Form state for creating/editing
     const [formName, setFormName] = useState('');
@@ -223,15 +224,18 @@ export const CvVersionSwitcher: React.FC<CvVersionSwitcherProps> = ({
                                 </span>
                             )}
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {profiles.length} version{profiles.length === 1 ? '' : 's'} saved in local storage
+                        <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
+                            <span>{profiles.length} version{profiles.length === 1 ? '' : 's'}</span>
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 rounded">
+                                🔒 Private Workspace (Isolated to you)
+                            </span>
                             {isCloudSynced ? (
-                                <span className="text-emerald-600 dark:text-emerald-400 font-medium ml-1.5 inline-flex items-center gap-1">
-                                    • <Cloud className="w-3 h-3" /> Cloud-synced with Firestore
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-1">
+                                    • <Cloud className="w-3 h-3" /> Cloud-synced with your private account
                                 </span>
                             ) : (
-                                <span className="text-slate-400 dark:text-slate-500 font-medium ml-1.5 inline-flex items-center gap-1">
-                                    • <HardDrive className="w-3 h-3" /> Local Storage only
+                                <span className="text-slate-400 dark:text-slate-500 font-medium inline-flex items-center gap-1">
+                                    • <HardDrive className="w-3 h-3" /> Local Storage only (Device private)
                                 </span>
                             )}
                         </p>
@@ -542,18 +546,37 @@ export const CvVersionSwitcher: React.FC<CvVersionSwitcherProps> = ({
                                                             <Copy className="w-3.5 h-3.5" />
                                                         </button>
                                                         {profiles.length > 1 && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    if (window.confirm(`Delete version "${profile.name}"?`)) {
-                                                                        onDeleteProfile(profile.id);
-                                                                    }
-                                                                }}
-                                                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                                                                title="Delete version"
-                                                            >
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                            </button>
+                                                            confirmDeleteId === profile.id ? (
+                                                                <div className="flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 p-1 rounded-lg border border-rose-200 dark:border-rose-800 animate-in fade-in">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            onDeleteProfile(profile.id);
+                                                                            setConfirmDeleteId(null);
+                                                                        }}
+                                                                        className="px-2 py-0.5 text-[10px] font-bold bg-rose-600 text-white rounded hover:bg-rose-700 transition-colors"
+                                                                        title="Permanently remove from your private workspace"
+                                                                    >
+                                                                        Delete Only for Me
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setConfirmDeleteId(null)}
+                                                                        className="px-1.5 py-0.5 text-[10px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setConfirmDeleteId(profile.id)}
+                                                                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                                                    title="Delete version (Only deletes from your private workspace)"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )
                                                         )}
                                                     </div>
                                                 </div>

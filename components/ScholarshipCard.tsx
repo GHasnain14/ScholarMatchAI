@@ -246,9 +246,16 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                 {/* Professor / Lab Title & Institution */}
                 <div>
                     <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-snug">
-                            {scholarship.professorName}
-                        </h3>
+                        <a 
+                            href={getFullUrl(scholarship.link)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Open official faculty profile of ${scholarship.professorName}`}
+                            className="text-base sm:text-lg font-bold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors leading-snug flex items-center gap-1.5 group/link cursor-pointer"
+                        >
+                            <span>{scholarship.professorName}</span>
+                            <ExternalLink className="w-3.5 h-3.5 text-blue-500 opacity-75 group-hover/link:opacity-100 group-hover/link:translate-x-0.5 transition-all shrink-0" />
+                        </a>
                         <button
                             type="button"
                             onClick={() => {
@@ -439,10 +446,10 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                         href={getFullUrl(scholarship.link)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                        title="View Official Lab Profile"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl transition-all shadow-xs hover:shadow-md cursor-pointer"
+                        title="View Official Professor & Lab Profile"
                     >
-                        <span>Lab Profile</span>
+                        <span>Professor Profile</span>
                         <ExternalLink className="w-3.5 h-3.5" />
                     </a>
 
@@ -455,7 +462,7 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                                 window.open(`https://scholar.google.com/scholar?q=${encodeURIComponent(`${scholarship.professorName} ${scholarship.institution}`)}`, '_blank');
                             }
                         }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#1a73e8] dark:text-blue-400 bg-blue-50/90 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-900 rounded-xl transition-all shadow-2xs cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-[#1a73e8] dark:text-blue-400 bg-blue-50/90 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-900 rounded-xl transition-all shadow-2xs cursor-pointer"
                         title="Search publications and citations on Google Scholar"
                     >
                         <GraduationCap className="w-3.5 h-3.5 text-[#4285F4]" />

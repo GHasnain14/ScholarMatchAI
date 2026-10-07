@@ -189,6 +189,14 @@ const App: React.FC = () => {
     }, [profiles, activeProfileId]);
 
     // Search and Filtering State
+    const [selectedSearchRegion, setSelectedSearchRegion] = useState<PositionSearchType | null>(() => {
+        try {
+            const saved = localStorage.getItem('scholar_selected_country');
+            return (saved as PositionSearchType) || null;
+        } catch {
+            return null;
+        }
+    });
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [selectedTierFilter, setSelectedTierFilter] = useState<string>('all');
     const [minMatchScore, setMinMatchScore] = useState<number>(75);
@@ -202,11 +210,28 @@ const App: React.FC = () => {
             setCurrentUser(user);
             setIsAuthLoading(false);
 
+            const scopeUid = user ? user.uid : null;
+            const scopedProfiles = loadLocalProfiles(scopeUid);
+            setProfiles(scopedProfiles);
+
+            const savedId = getActiveProfileId(scopeUid);
+            const activeId = (savedId && scopedProfiles.some(p => p.id === savedId))
+                ? savedId
+                : scopedProfiles[0]?.id || null;
+            setActiveProfileIdState(activeId);
+
+            const activeP = scopedProfiles.find(p => p.id === activeId) || scopedProfiles[0];
+            if (activeP) {
+                setCvText(activeP.text);
+                if (activeP.analysis) {
+                    setCvAnalysis(activeP.analysis);
+                }
+            }
+
             if (user) {
-                // Sync current local profiles to Firestore under the user's account
+                // Sync current user's local profiles to their personal Firestore document collection
                 try {
-                    const localProfiles = loadLocalProfiles();
-                    for (const p of localProfiles) {
+                    for (const p of scopedProfiles) {
                         await saveCvProfileToFirestore(user.uid, p);
                     }
                 } catch (e) {
@@ -228,7 +253,7 @@ const App: React.FC = () => {
                 if (cloudProfiles && cloudProfiles.length > 0) {
                     setProfiles((prev) => {
                         const merged = mergeLocalAndCloudProfiles(prev, cloudProfiles);
-                        saveLocalProfiles(merged);
+                        saveLocalProfiles(merged, currentUser.uid);
                         return merged;
                     });
                 }
@@ -341,26 +366,26 @@ const App: React.FC = () => {
         }
     }, [activeProfileId]);
 
-    // Profile Management Handlers
+    // Profile Management Handlers (Strictly Scoped to Current User or Isolated Guest Workspace)
     const handleSelectProfile = useCallback((profileId: string) => {
         const target = profiles.find(p => p.id === profileId);
         if (!target) return;
         setActiveProfileIdState(profileId);
-        setActiveProfileId(profileId);
+        setActiveProfileId(profileId, currentUser?.uid);
         setCvText(target.text);
         if (target.analysis) {
             setCvAnalysis(target.analysis);
         } else {
             generateSummaryForCv(target.text);
         }
-    }, [profiles, generateSummaryForCv]);
+    }, [profiles, currentUser, generateSummaryForCv]);
 
     const handleCreateProfile = useCallback(async (newProfile: CvProfile) => {
         const updated = [newProfile, ...profiles];
         setProfiles(updated);
-        saveLocalProfiles(updated);
+        saveLocalProfiles(updated, currentUser?.uid);
         setActiveProfileIdState(newProfile.id);
-        setActiveProfileId(newProfile.id);
+        setActiveProfileId(newProfile.id, currentUser?.uid);
         setCvText(newProfile.text);
         generateSummaryForCv(newProfile.text);
 
@@ -368,7 +393,7 @@ const App: React.FC = () => {
             try {
                 await saveCvProfileToFirestore(currentUser.uid, newProfile);
             } catch (e) {
-                console.error('Failed to save new profile to Firestore:', e);
+                console.error('Failed to save new profile to personal Firestore:', e);
             }
         }
     }, [profiles, currentUser, generateSummaryForCv]);
@@ -376,7 +401,7 @@ const App: React.FC = () => {
     const handleUpdateProfile = useCallback(async (updatedProfile: CvProfile) => {
         const updated = profiles.map(p => p.id === updatedProfile.id ? updatedProfile : p);
         setProfiles(updated);
-        saveLocalProfiles(updated);
+        saveLocalProfiles(updated, currentUser?.uid);
 
         if (activeProfileId === updatedProfile.id) {
             setCvText(updatedProfile.text);
@@ -386,7 +411,7 @@ const App: React.FC = () => {
             try {
                 await saveCvProfileToFirestore(currentUser.uid, updatedProfile);
             } catch (e) {
-                console.error('Failed to update profile in Firestore:', e);
+                console.error('Failed to update profile in personal Firestore:', e);
             }
         }
     }, [profiles, activeProfileId, currentUser]);
@@ -395,12 +420,12 @@ const App: React.FC = () => {
         if (profiles.length <= 1) return;
         const remaining = profiles.filter(p => p.id !== profileId);
         setProfiles(remaining);
-        saveLocalProfiles(remaining);
+        saveLocalProfiles(remaining, currentUser?.uid);
 
         if (activeProfileId === profileId) {
             const next = remaining[0];
             setActiveProfileIdState(next.id);
-            setActiveProfileId(next.id);
+            setActiveProfileId(next.id, currentUser?.uid);
             setCvText(next.text);
             if (next.analysis) {
                 setCvAnalysis(next.analysis);
@@ -409,11 +434,12 @@ const App: React.FC = () => {
             }
         }
 
+        // Only delete from Firestore under this user's personal UID if authenticated
         if (currentUser) {
             try {
                 await deleteCvProfileFromFirestore(currentUser.uid, profileId);
             } catch (e) {
-                console.error('Failed to delete profile from Firestore:', e);
+                console.error('Failed to delete profile from personal Firestore:', e);
             }
         }
     }, [profiles, activeProfileId, currentUser, generateSummaryForCv]);
@@ -438,8 +464,16 @@ const App: React.FC = () => {
             setIsAuthLoading(true);
             const user = await signInWithGoogle();
             setCurrentUser(user);
-            const localProfiles = loadLocalProfiles();
-            for (const p of localProfiles) {
+            const userProfiles = loadLocalProfiles(user.uid);
+            setProfiles(userProfiles);
+            const activeId = getActiveProfileId(user.uid) || userProfiles[0]?.id || null;
+            setActiveProfileIdState(activeId);
+            const active = userProfiles.find(p => p.id === activeId) || userProfiles[0];
+            if (active) {
+                setCvText(active.text);
+                setCvAnalysis(active.analysis || null);
+            }
+            for (const p of userProfiles) {
                 await saveCvProfileToFirestore(user.uid, p);
             }
         } catch (e) {
@@ -453,6 +487,16 @@ const App: React.FC = () => {
         try {
             await signOutUser();
             setCurrentUser(null);
+            // Switch cleanly to isolated guest workspace
+            const guestProfiles = loadLocalProfiles(null);
+            setProfiles(guestProfiles);
+            const activeId = getActiveProfileId(null) || guestProfiles[0]?.id || null;
+            setActiveProfileIdState(activeId);
+            const active = guestProfiles.find(p => p.id === activeId) || guestProfiles[0];
+            if (active) {
+                setCvText(active.text);
+                setCvAnalysis(active.analysis || null);
+            }
         } catch (e) {
             console.error('Sign-out failed:', e);
         }
@@ -465,7 +509,7 @@ const App: React.FC = () => {
         setError(null);
         generateSummaryForCv(text);
 
-        // Also update active profile text
+        // Also update active profile text in scoped storage
         if (activeProfileId) {
             setProfiles((prev) => {
                 const updated = prev.map((p) => {
@@ -474,7 +518,7 @@ const App: React.FC = () => {
                     }
                     return p;
                 });
-                saveLocalProfiles(updated);
+                saveLocalProfiles(updated, currentUser?.uid);
                 return updated;
             });
 
@@ -563,6 +607,13 @@ const App: React.FC = () => {
             setError('Please upload or select a sample CV first.');
             return;
         }
+        setSelectedSearchRegion(searchType);
+        setSelectedTierFilter('all');
+        setSearchQuery('');
+        setScholarships([]); // Clear previous country cards so old cards never persist during new search
+        try {
+            localStorage.setItem('scholar_selected_country', searchType);
+        } catch (e) {}
         setIsLoading(true);
         setError(null);
 
@@ -1151,12 +1202,12 @@ const App: React.FC = () => {
                                             Explore Funded Lab Positions & Fellowships
                                         </h3>
                                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            Select a target region to run an AI match against current active lab openings.
+                                            Select a target region to run an AI match against current active lab openings across Top, Mid, and Foundation university tiers.
                                         </p>
                                     </div>
                                     {scholarships.length > 0 && (
-                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200">
-                                            {scholarships.length} Positions Discovered
+                                        <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-2xs">
+                                            {selectedSearchRegion ? `${COUNTRY_OPTIONS.find(c => c.type === selectedSearchRegion)?.label.split(' (')[0] || ''}: ` : ''}{scholarships.length} Positions Discovered
                                         </span>
                                     )}
                                 </div>
@@ -1168,8 +1219,16 @@ const App: React.FC = () => {
                                             type="button"
                                             onClick={() => handleFindPositions(c.type)}
                                             disabled={isLoading || !cvText}
-                                            className={`p-3.5 rounded-2xl bg-gradient-to-r ${c.color} text-white font-bold text-xs flex flex-col items-start justify-between min-h-[78px] shadow-md ${c.shadow} hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all group`}
+                                            className={`p-3.5 rounded-2xl bg-gradient-to-r ${c.color} text-white font-bold text-xs flex flex-col items-start justify-between min-h-[78px] shadow-md ${c.shadow} hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all group relative overflow-hidden ${
+                                                selectedSearchRegion === c.type ? 'ring-4 ring-white dark:ring-blue-400 ring-offset-2 ring-offset-slate-900 shadow-xl scale-[1.03]' : ''
+                                            }`}
                                         >
+                                            {selectedSearchRegion === c.type && (
+                                                <span className="absolute top-2 right-2 flex h-2 w-2">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                                                </span>
+                                            )}
                                             <span className="text-xl mb-1 group-hover:scale-125 transition-transform">{c.flag}</span>
                                             <span className="leading-tight text-left">{c.label}</span>
                                         </button>
@@ -1187,25 +1246,30 @@ const App: React.FC = () => {
                                             type="text"
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
-                                            placeholder="Search by professor, university, or keyword (e.g. Robotics, KAIST)..."
+                                            placeholder="Search by professor, university, or keyword (e.g. KAIST, Robotics, SLAM)..."
                                             className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100"
                                         />
                                     </div>
 
                                     {/* Tier Filters */}
                                     <div className="flex items-center gap-1.5 overflow-x-auto">
-                                        {['all', 'Top-Tier', 'Mid-Tier', 'Low-Rank'].map((tier) => (
+                                        {[
+                                            { id: 'all', label: 'All Tiers' },
+                                            { id: 'Top-Tier', label: '🏆 Top-Tier' },
+                                            { id: 'Mid-Tier', label: '⭐ Mid-Tier' },
+                                            { id: 'Low-Rank', label: '🎯 High-Acceptance Tier' }
+                                        ].map((t) => (
                                             <button
-                                                key={tier}
+                                                key={t.id}
                                                 type="button"
-                                                onClick={() => setSelectedTierFilter(tier)}
+                                                onClick={() => setSelectedTierFilter(t.id)}
                                                 className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                                                    selectedTierFilter === tier
+                                                    selectedTierFilter === t.id
                                                         ? 'bg-blue-600 text-white shadow-2xs'
                                                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                                                 }`}
                                             >
-                                                {tier === 'all' ? 'All Tiers' : tier}
+                                                {t.label}
                                             </button>
                                         ))}
                                     </div>
@@ -1241,13 +1305,24 @@ const App: React.FC = () => {
                                     {sortedTiers.map(tier => (
                                         <div key={tier} className="space-y-4">
                                             <div className="flex items-center justify-between pb-2 border-b-2 border-slate-200 dark:border-slate-800">
-                                                <div className="flex items-center gap-2">
-                                                    <h3 className="text-xl font-black text-slate-900 dark:text-white">
-                                                        {tier.replace(/-/g, ' ')} Institutions
-                                                    </h3>
-                                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200">
-                                                        {groupedScholarships[tier]?.length || 0} Matches
-                                                    </span>
+                                                <div className="space-y-0.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                                                            {tier === 'Low-Rank' 
+                                                                ? 'High-Acceptance / Foundation Tier Institutions' 
+                                                                : `${tier.replace(/-/g, ' ')} Institutions`}
+                                                        </h3>
+                                                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200">
+                                                            {groupedScholarships[tier]?.length || 0} Matches
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                                        {tier === 'Top-Tier'
+                                                            ? 'Flagship global research powerhouses & premier institutes with highly selective admissions and full scholarships'
+                                                            : tier === 'Mid-Tier'
+                                                            ? 'Major national research universities with active laboratory grants and strong international admissions'
+                                                            : 'Emerging & regional universities offering high acceptance quotas, GKS/stipend grants, and accessible entry requirements'}
+                                                    </p>
                                                 </div>
                                             </div>
 

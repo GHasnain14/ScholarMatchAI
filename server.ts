@@ -277,7 +277,11 @@ function synthesizeCvAnalysisFallback(cvText: string) {
 /**
  * Intelligent Academic Lab & Scholarship Opportunity Matching Fallback
  */
-function synthesizePositionsFallback(cvText: string, prompt: string) {
+function synthesizePositionsFallback(cvText: string, prompt: string, targetCountry?: string) {
+    return getCuratedPositionsForCountry(targetCountry || '', cvText, prompt);
+}
+
+function _legacySynthesizePositionsFallback(cvText: string, prompt: string) {
     const textLower = (cvText + " " + prompt).toLowerCase();
     const isBio = textLower.includes("bio") || textLower.includes("medical") || textLower.includes("genom") || textLower.includes("molecular");
     const isRobotics = textLower.includes("robot") || textLower.includes("ros") || textLower.includes("control") || textLower.includes("embedded");
@@ -1044,15 +1048,73 @@ ${cvText}`;
         }
     });
 
+    // Helper to verify if an opportunity matches the user's requested country
+    const isMatchingTargetCountry = (pos: any, target?: string): boolean => {
+        if (!target || target === 'global') return true;
+        const normTarget = target.trim().toLowerCase();
+        const posCountry = (pos.country || '').trim().toLowerCase();
+        const posInst = (pos.institution || '').toLowerCase();
+        const posArea = (pos.researchArea || '').toLowerCase();
+        const posName = (pos.professorName || '').toLowerCase();
+        const combined = `${posCountry} ${posInst} ${posArea} ${posName}`;
+
+        if (normTarget === 'south-korea' || normTarget === 'korea' || normTarget === 'south korea') {
+            const hasKoreaSignals = combined.includes('korea') || combined.includes('kaist') || combined.includes('snu') || combined.includes('postech') || combined.includes('yonsei') || combined.includes('unist') || combined.includes('skku') || combined.includes('gist') || combined.includes('hanyang') || combined.includes('chungnam') || combined.includes('pusan') || combined.includes('knu');
+            const hasUsFalsePositive = (posCountry === 'usa' || posCountry === 'united states' || combined.includes('stanford') || combined.includes('berkeley') || combined.includes('cmu') || combined.includes('mit')) && !combined.includes('korea');
+            return hasKoreaSignals && !hasUsFalsePositive;
+        }
+        if (normTarget === 'usa' || normTarget === 'united states') {
+            return posCountry.includes('usa') || posCountry.includes('united states') || combined.includes('stanford') || combined.includes('berkeley') || combined.includes('cmu') || combined.includes('harvard') || combined.includes('mit') || combined.includes('princeton');
+        }
+        if (normTarget === 'germany') {
+            return posCountry.includes('germany') || posCountry.includes('deutschland') || combined.includes('tum') || combined.includes('rwth') || combined.includes('max planck') || combined.includes('helmholtz') || combined.includes('heidelberg');
+        }
+        if (normTarget === 'canada') {
+            return posCountry.includes('canada') || combined.includes('toronto') || combined.includes('mcgill') || combined.includes('waterloo') || combined.includes('mila') || combined.includes('ubc');
+        }
+        if (normTarget === 'uk' || normTarget === 'united kingdom') {
+            return posCountry.includes('united kingdom') || posCountry.includes('uk') || combined.includes('oxford') || combined.includes('cambridge') || combined.includes('imperial') || combined.includes('edinburgh') || combined.includes('ucl');
+        }
+        if (normTarget === 'japan') {
+            return posCountry.includes('japan') || combined.includes('tokyo') || combined.includes('kyoto') || combined.includes('osaka') || combined.includes('riken') || combined.includes('mext');
+        }
+        if (normTarget === 'france') {
+            return posCountry.includes('france') || combined.includes('sorbonne') || combined.includes('inria') || combined.includes('saclay') || combined.includes('cnrs') || combined.includes('polytechnique');
+        }
+        if (normTarget === 'erasmus-mundus' || normTarget === 'erasmus') {
+            return posCountry.includes('erasmus') || posCountry.includes('europe') || combined.includes('emjmd') || combined.includes('consortium') || combined.includes('erasmus');
+        }
+        if (normTarget === 'australia') {
+            return posCountry.includes('australia') || combined.includes('melbourne') || combined.includes('sydney') || combined.includes('unsw') || combined.includes('anu') || combined.includes('monash');
+        }
+        if (normTarget === 'singapore') {
+            return posCountry.includes('singapore') || combined.includes('nus') || combined.includes('ntu') || combined.includes('smu') || combined.includes('a*star');
+        }
+        if (normTarget === 'poland') {
+            return posCountry.includes('poland') || combined.includes('warsaw') || combined.includes('jagiellonian') || combined.includes('nawa');
+        }
+        if (normTarget === 'belgium') {
+            return posCountry.includes('belgium') || combined.includes('leuven') || combined.includes('ghent') || combined.includes('brussels') || combined.includes('uclouvain');
+        }
+
+        return posCountry.includes(normTarget);
+    };
+
     // Find positions
     app.post("/api/find-positions", async (req: Request, res: Response) => {
         try {
-            const { cvText, prompt, feedbackContext } = req.body;
+            const { cvText, prompt, feedbackContext, targetCountry } = req.body;
             if (!cvText || !prompt) {
                 return res.status(400).json({ error: "CV text and prompt are required." });
             }
 
-            const fullPrompt = `${feedbackContext ? feedbackContext + "\n\n" : ""}${prompt}\n\nHere is the candidate's CV:\n\n${cvText}`;
+            const countryDirective = targetCountry && targetCountry !== 'global'
+                ? `\n\nCRITICAL COUNTRY RESTRICTION: The user has selected "${targetCountry}". Every single recommended institution, lab, and professor MUST be physically located in ${targetCountry}. DO NOT return universities in the United States or any other region. Provide comprehensive coverage spanning Top-Tier, Mid-Tier, and High-Acceptance/Regional institutions with valid direct URLs to professor profiles.`
+                : '';
+
+            const fullPrompt = `${feedbackContext ? feedbackContext + "\n\n" : ""}${prompt}${countryDirective}\n\nHere is the candidate's CV:\n\n${cvText}`;
+
+            let candidatePositions: any[] = [];
 
             try {
                 const response = await generateContentWithRetry({
@@ -1066,20 +1128,33 @@ ${cvText}`;
                 if (response?.text) {
                     const parsed = JSON.parse(response.text);
                     if (Array.isArray(parsed) && parsed.length > 0) {
-                        return res.json({ positions: parsed });
+                        // Filter out any hallucinated positions outside requested target country
+                        candidatePositions = parsed.filter(p => isMatchingTargetCountry(p, targetCountry));
                     }
                 }
             } catch (aiErr) {
                 console.warn("Live Gemini API calls throttled; generating curated academic positions fallback:", aiErr);
-                const positions = synthesizePositionsFallback(cvText, prompt);
-                return res.json({ positions });
             }
 
-            const positions = synthesizePositionsFallback(cvText, prompt);
-            return res.json({ positions });
+            // Always ensure comprehensive, multi-tier opportunities by supplementing from curated database
+            const curatedFallback = synthesizePositionsFallback(cvText, prompt, targetCountry);
+
+            // If AI returned fewer than 10 matching positions or has tier gaps, merge with curated database
+            if (candidatePositions.length < 10) {
+                const existingNames = new Set(candidatePositions.map(p => (p.professorName || '').toLowerCase().trim()));
+                for (const curated of curatedFallback) {
+                    const key = (curated.professorName || '').toLowerCase().trim();
+                    if (!existingNames.has(key)) {
+                        candidatePositions.push(curated);
+                        existingNames.add(key);
+                    }
+                }
+            }
+
+            return res.json({ positions: candidatePositions.length > 0 ? candidatePositions : curatedFallback });
         } catch (error: any) {
             console.error("Error in /api/find-positions:", error);
-            const positions = synthesizePositionsFallback(req.body?.cvText || "", req.body?.prompt || "");
+            const positions = synthesizePositionsFallback(req.body?.cvText || "", req.body?.prompt || "", req.body?.targetCountry);
             return res.json({ positions });
         }
     });
