@@ -165,6 +165,26 @@ export interface WikipediaAiTellFinding {
     examples: string[];
 }
 
+export interface QualityAuditReport {
+    passed: boolean;
+    overallScore: number;
+    passesCompleted: number;
+    wikipediaAiTellsPurged: number;
+    turnitinDetectionRisk: number;
+    burstinessScore: number;
+    semanticIntegrityScore: number;
+    checks: {
+        copulaNaturalness: 'PASSED' | 'FLAGGED';
+        parallelismAvoidance: 'PASSED' | 'FLAGGED';
+        superficialParticiples: 'PASSED' | 'FLAGGED';
+        aiVocabularyPurge: 'PASSED' | 'FLAGGED';
+        cadenceBurstiness: 'PASSED' | 'FLAGGED';
+        factualFidelity: 'PASSED' | 'FLAGGED';
+    };
+    evaluatorNotes: string;
+    revisionHistory?: { pass: number; description: string; score: number }[];
+}
+
 export interface WatermarkScanResult {
     cleanedText: string;
     originalText: string;
@@ -172,6 +192,7 @@ export interface WatermarkScanResult {
     hiddenWatermarkTypes: string[];
     aiClichesFound: { phrase: string; suggestion: string; index: number }[];
     wikipediaTellsFound?: WikipediaAiTellFinding[];
+    qualityAudit?: QualityAuditReport;
     aiProbabilityOriginal: number;
     aiProbabilityCleaned: number;
     readabilityGrade: string;

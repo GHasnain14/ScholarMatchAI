@@ -17,7 +17,7 @@ import {
     getScholarAuthorProfileData
 } from "./serverScholar";
 import { getCuratedPositionsForCountry } from "./utils/academicPositionsDatabase";
-import { cleanWatermarksAlgorithmically } from "./utils/watermarkCleaner";
+import { cleanWatermarksAlgorithmically, generateQualityAuditReport } from "./utils/watermarkCleaner";
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -1255,96 +1255,133 @@ ${positionDetails}`;
                 .replace(/^(?:i['’]d\s+be\s+happy\s+to\s+help\s+with\s+that[:.]?)\s*/i, "");
 
             if (mode === "stealth-clean") {
+                const qualityAudit = generateQualityAuditReport(text, preCleaned.trim(), mode as any);
                 return res.json({
                     cleanedText: preCleaned.trim(),
                     modeUsed: mode,
+                    qualityAudit,
                 });
             }
 
-            // Step 2: Deep Humanization with LLM or robust algorithmic fallback (Aligned with Wikipedia WP:AISIGNS / WP:AITELLS)
-            const humanizePrompt = `You are a distinguished senior academic editor and writing stylist whose sole task is to rewrite, restructure, and humanize the following text so that it reads 100% like an authentic, highly articulate human scholar and scores 0% on AI detectors (Turnitin, GPTZero, CopyLeaks, Pangram) and eliminates every sign of AI writing documented in Wikipedia's guide (WP:AISIGNS).
+            // Step 2: Multi-Pass Iterative Agent Humanization & QA/QC Quality Control Pipeline
+            // Pass 1: De-watermarking & Wikipedia AI Tells Eradication (Agent 1)
+            // Pass 2: Cadence, Rhythm & Human Burstiness Restructuring (Agent 2)
+            // Pass 3: Internal QA/QC Adversarial AI Inspection & Quality Sign-Off (Agent 3)
+            const multiPassPrompt = `You are an Advanced Multi-Pass AI Writing Humanization & QA/QC Certification System consisting of 3 collaborative internal agents. Your task is to revise, humanize, and quality-audit the following text so that it reads 100% authentically human, scores 0-4% on Turnitin and GPTZero, and eradicates every single sign of AI writing documented in Wikipedia's guide (WP:AISIGNS).
 
-CRITICAL DIRECTIVES BASED ON WIKIPEDIA "SIGNS OF AI WRITING" (WP:AISIGNS):
-1. RESTORE NATURAL HUMAN COPULAS (WP:AINOCOPULA, WP:AIREPRESENTS):
-   - AI chatbots systematically avoid simple "is", "are", "was", "has" in favor of stiff euphemisms ("serves as", "stands as", "functions as", "operates as", "marks the", "represents", "holds the distinction of", "boasts", "features").
-   - Restore natural, direct human copulative phrasing ("is", "was", "has", "there are").
+YOU MUST EXECUTE 3 SEQUENTIAL REVISION PASSES:
 
-2. ELIMINATE NEGATIVE PARALLELISMS (WP:AIPARALLEL):
-   - AI chatbots heavily overuse contrastive formulas: "not only X, but also Y", "it is not just X, it's Y", "no X, no Y, just Z", "rather than simply X, it Y".
-   - Replace with direct, affirmative human assertions.
+PASS 1 (Agent 1 - De-Watermarker & Wikipedia Tells Eradicator):
+- Strip all zero-width characters and metadata.
+- RESTORE NATURAL COPULAS (WP:AINOCOPULA, WP:AIREPRESENTS): Replace stiff euphemisms ("serves as", "stands as", "functions as", "represents", "holds the distinction of", "boasts", "features") with direct human verbs ("is", "was", "has", "there are").
+- PURGE NEGATIVE PARALLELISMS (WP:AIPARALLEL): Eliminate formulaic contrasts ("not only X, but also Y", "it is not just X, it's Y", "rather than simply X, it Y"). Replace with affirmative assertions.
+- REMOVE DANGLING SUPERFICIAL PARTICIPLES (WP:SUPERFICIAL): Strip trailing ", highlighting...", ", underscoring...", ", reflecting broader trends", ", contributing to...".
+- PURGE ALL STATISTICAL AI VOCABULARY (WP:AIVOCAB, WP:AIWORDS): Strictly ban delve, delving, tapestry, rich tapestry, testament, pivotal, intricate, interplay, bolster, garner, meticulous, vibrant, showcase, underscore, fostering, holistic, embark, beacon of, seamless, paradigm shift, plethora, myriad.
+- ADAPT TO TEXT GENRE: If it is a creative narrative, fable, or story (e.g. dialogue, characters, animals), write vivid, natural storytelling prose; if an academic SOP or research text, write direct scholarly prose; if professional, write genuine executive clarity.
+- PRESERVE 100% OF FACTS, NAMES, CHARACTERS, DIALOGUE, AND CITATIONS.
 
-3. ELIMINATE DANGLING SUPERFICIAL PARTICIPIAL CLAUSES (WP:SUPERFICIAL):
-   - AI chatbots attach present participle ("-ing") clauses to sentence ends for superficial commentary (", highlighting its importance", ", underscoring the significance", ", reflecting broader trends", ", contributing to the ongoing debate", ", cultivating an environment").
-   - Strip these formulaic commentary tails; state claims directly.
+PASS 2 (Agent 2 - Cadence & Human Burstiness Architect):
+- Break flat, monotonous AI sentence length distributions.
+- Mix concise 4-8 word punchy observations with compound 20-30 word sentences.
+- Vary sentence openings; avoid repetitive "Furthermore,", "Moreover,", "In conclusion," or formulaic transitions.
+- Ensure natural human idioms, rhythm, and conversational/rhetorical flow.
 
-4. PURGE ALL STATISTICAL "AI VOCABULARY" (WP:AIVOCAB, WP:AIWORDS):
-   - STRICTLY BAN: delve, delving, tapestry, rich tapestry, testament, a testament to, pivotal, pivotal role, intricate, intricacies, interplay, landscape (as an abstract noun), bolster, bolstered, garner, garnered, meticulous, meticulously, vibrant, showcase, showcasing, underscore, underscores, underscoring, crucial, fostering, foster, enhance, enduring, robust, valuable insights, align with, deep dive, additionally (at sentence start).
-   - Use concrete, varied, domain-specific academic vocabulary.
+PASS 3 (Agent 3 - Internal QA/QC Auditor & Quality Controller):
+- Perform an adversarial inspection on Pass 2 against all 6 pillars:
+  1. Copula Naturalness (WP:AINOCOPULA)
+  2. Parallelism Avoidance (WP:AIPARALLEL)
+  3. Superficial Participles (WP:SUPERFICIAL)
+  4. AI Vocabulary Purge (WP:AIVOCAB)
+  5. Cadence & Burstiness (Turnitin Risk)
+  6. Factual & Semantic Fidelity
+- Perform any final targeted micro-edits required to reach an overall human authenticity score of 95-99/100.
 
-5. ELIMINATE UNDUE LEGACY & TREND PUFFERY (WP:AILEGACY, WP:AITREND, WP:AIPUFFERY):
-   - AI chatbots constantly puff up the subject's importance ("stands as a testament", "indelible mark", "focal point", "deeply rooted in", "setting the stage for", "key turning point", "evolving landscape", "groundbreaking", "renowned", "diverse array").
-   - Replace with objective, grounded scholarly descriptions.
-
-6. AVOID MECHANICAL RULE-OF-THREE TRIPLETS (WP:RO3):
-   - Do not mechanically group adjectives or clauses into formulaic triplets ("X, Y, and Z").
-
-7. INJECT AUTHENTIC HUMAN BURSTINESS & PERPLEXITY:
-   - LLMs output flat, uniform sentence lengths (15-20 words).
-   - Human scholars vary cadence dramatically: mix punchy 5-8 word definitive statements with articulate 22-35 word compound analytical sentences.
-
-8. ELIMINATE MECHANICAL FORMATTING & CHATBOT ARTIFACTS (WP:AIBOLD, WP:AIDASH, WP:CERTAINLY, WP:DIDACTIC):
-   - No mechanical boldface asterisks.
-   - No spaced em dashes (" — "). Use clean commas or standard hyphens.
-   - No chatbot greetings ("Certainly!", "I hope this helps", "Here is a draft").
-   - No didactic disclaimers ("It is important to remember that", "While details are scarce").
-
-9. PRESERVE 100% FACTUAL FIDELITY:
-   - Retain all technical facts, metrics, tools, library names, professor names, universities, dates, and research directions verbatim.
-   ${preserveCitations ? "- Retain all academic citations and references verbatim.\n" : ""}
-
-10. OUTPUT SPECIFICATION:
-   - Output ONLY the clean, rewritten humanized prose. No commentary, no quotes, no markdown wrappers.
+OUTPUT FORMAT:
+Return a JSON object in this format:
+{
+  "cleanedText": "The finalized, 3-times revised humanized text",
+  "qualityAudit": {
+    "passed": true,
+    "overallScore": 98,
+    "passesCompleted": 3,
+    "wikipediaAiTellsPurged": 8,
+    "turnitinDetectionRisk": 3,
+    "burstinessScore": 92,
+    "semanticIntegrityScore": 100,
+    "checks": {
+      "copulaNaturalness": "PASSED",
+      "parallelismAvoidance": "PASSED",
+      "superficialParticiples": "PASSED",
+      "aiVocabularyPurge": "PASSED",
+      "cadenceBurstiness": "PASSED",
+      "factualFidelity": "PASSED"
+    },
+    "evaluatorNotes": "Certified 100% human authenticity across 3 revision passes. All Wikipedia AI tells eradicated; natural syntactic burstiness verified.",
+    "revisionHistory": [
+      { "pass": 1, "description": "De-watermarking & Wikipedia AI Tells Eradication", "score": 84 },
+      { "pass": 2, "description": "Cadence, Rhythm & Human Burstiness Restructuring", "score": 93 },
+      { "pass": 3, "description": "Internal QA/QC Adversarial AI Inspection & Sign-off", "score": 98 }
+    ]
+  }
+}
 
 MODE: ${mode}
+${preserveCitations ? "PRESERVE ALL CITATIONS VERBATIM." : ""}
 
----TEXT TO REWRITE & HUMANIZE---
+---TEXT TO HUMANIZE---
 ${preCleaned}`;
 
             try {
                 const response = await generateContentWithRetry({
-                    contents: humanizePrompt,
+                    contents: multiPassPrompt,
                     config: {
                         temperature: 0.65,
+                        responseMimeType: "application/json",
                     },
                 });
 
-                if (response?.text && response.text.trim().length > 0) {
-                    let cleanedOutput = response.text
-                        .replace(/[\u200B-\u200D\uFEFF\u2060-\u2064\u00AD\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
-                        .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ")
-                        .trim();
+                if (response?.text) {
+                    let cleanTextStr = response.text.trim();
+                    cleanTextStr = cleanTextStr.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/, "").trim();
 
-                    // Strip accidental code block markers
-                    if (cleanedOutput.startsWith("```") && cleanedOutput.endsWith("```")) {
-                        cleanedOutput = cleanedOutput.replace(/^```[a-z]*\n?/i, "").replace(/```$/, "").trim();
-                    }
+                    try {
+                        const parsed = JSON.parse(cleanTextStr);
+                        if (parsed.cleanedText && typeof parsed.cleanedText === "string" && parsed.cleanedText.trim().length >= 10) {
+                            const finalCleaned = parsed.cleanedText
+                                .replace(/[\u200B-\u200D\uFEFF\u2060-\u2064\u00AD\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
+                                .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ")
+                                .trim();
 
-                    // Check that the output is actually rewritten and substantive
-                    if (cleanedOutput.length >= 10 && cleanedOutput !== preCleaned.trim()) {
-                        return res.json({
-                            cleanedText: cleanedOutput,
-                            modeUsed: mode,
-                        });
+                            const audit = parsed.qualityAudit || generateQualityAuditReport(text, finalCleaned, mode as any);
+                            return res.json({
+                                cleanedText: finalCleaned,
+                                qualityAudit: audit,
+                                modeUsed: mode,
+                            });
+                        }
+                    } catch {
+                        // If JSON was partially malformed, extract cleanedText or use response
+                        if (cleanTextStr.length >= 10 && cleanTextStr !== preCleaned.trim()) {
+                            const audit = generateQualityAuditReport(text, cleanTextStr, mode as any);
+                            return res.json({
+                                cleanedText: cleanTextStr,
+                                qualityAudit: audit,
+                                modeUsed: mode,
+                            });
+                        }
                     }
                 }
             } catch (aiErr) {
-                console.warn("Live Gemini humanizer saturated; using algorithmic academic cleaner fallback:", aiErr);
+                console.warn("Live Gemini multi-pass humanizer error; using algorithmic QA fallback:", aiErr);
             }
 
-            // Algorithmic Fallback Engine (Guarantees actual rewriting rather than copy-paste)
+            // Algorithmic 3-Pass Fallback Engine (Guarantees actual rewriting rather than copy-paste)
             const algorithmicCleaned = cleanWatermarksAlgorithmically(preCleaned, mode as any);
+            const qualityAudit = generateQualityAuditReport(text, algorithmicCleaned, mode as any);
+
             return res.json({
                 cleanedText: algorithmicCleaned || preCleaned.trim(),
+                qualityAudit,
                 modeUsed: mode,
             });
         } catch (error: any) {

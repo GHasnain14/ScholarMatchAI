@@ -8,7 +8,8 @@ import {
     LinkedInProfileData,
     ScholarPaper,
     ScholarAuthorProfile,
-    WatermarkCleaningMode
+    WatermarkCleaningMode,
+    QualityAuditReport
 } from '../types';
 
 import {
@@ -18,6 +19,8 @@ import {
     synthesizeClientCleanText,
     searchClientScholarPapers
 } from '../utils/clientFallbackSynthesis';
+
+import { generateQualityAuditReport } from '../utils/watermarkCleaner';
 
 import {
     synthesizeMasterProgramsFallback,
@@ -252,29 +255,47 @@ export const draftDocument = async (
     });
 };
 
+export interface CleanAndHumanizeResult {
+    cleanedText: string;
+    qualityAudit?: QualityAuditReport;
+    modeUsed?: WatermarkCleaningMode;
+}
+
 /**
- * Call the backend server endpoint to clean AI watermarks and humanize academic text
+ * Call the backend server endpoint to clean AI watermarks and humanize text with internal QA/QC audit
  */
 export const cleanAndHumanizeText = async (params: {
     text: string;
     mode?: WatermarkCleaningMode;
     preserveCitations?: boolean;
-}): Promise<string> => {
-    const { text, mode = 'academic-humanize', preserveCitations = true } = params;
+}): Promise<CleanAndHumanizeResult> => {
+    const { text, mode = 'turnitin-bypass', preserveCitations = true } = params;
 
-    const res = await postWithStaticFallback<{ cleanedText?: string }>(
+    const res = await postWithStaticFallback<{ cleanedText?: string; qualityAudit?: QualityAuditReport; modeUsed?: WatermarkCleaningMode }>(
         '/api/humanize-clean-text',
         {
             text,
             mode,
             preserveCitations,
         },
-        () => ({
-            cleanedText: synthesizeClientCleanText(params)
-        })
+        () => {
+            const fallbackText = synthesizeClientCleanText(params);
+            return {
+                cleanedText: fallbackText,
+                qualityAudit: generateQualityAuditReport(text, fallbackText, mode),
+                modeUsed: mode
+            };
+        }
     );
 
-    return res.cleanedText || synthesizeClientCleanText(params);
+    const finalCleaned = res.cleanedText || synthesizeClientCleanText(params);
+    const qualityAudit = res.qualityAudit || generateQualityAuditReport(text, finalCleaned, mode);
+
+    return {
+        cleanedText: finalCleaned,
+        qualityAudit,
+        modeUsed: res.modeUsed || mode,
+    };
 };
 
 /**
