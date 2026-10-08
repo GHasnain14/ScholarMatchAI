@@ -50,7 +50,7 @@ const CANDIDATE_MODELS = [
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Execute Gemini call with automatic multi-model rotation and 429/503 quota-awareness
+ * Execute Gemini call with automatic multi-model rotation, timeout safety, and 429/503 quota-awareness
  */
 async function generateContentWithRetry(params: {
     contents: string;
@@ -61,22 +61,26 @@ async function generateContentWithRetry(params: {
 
     for (const model of CANDIDATE_MODELS) {
         try {
-            const response = await ai.models.generateContent({
+            // Guard with a 9-second timeout per model so requests never hang indefinitely
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(`Timeout after 9s calling model ${model}`)), 9000)
+            );
+
+            const callPromise = ai.models.generateContent({
                 model,
                 contents: params.contents,
                 config: params.config,
             });
+
+            const response: any = await Promise.race([callPromise, timeoutPromise]);
             if (response && response.text) {
                 return response;
             }
         } catch (err: any) {
             lastError = err;
-            const status = err?.status || err?.code || (err?.error && err.error.code);
-            // If 503 high demand or 429 quota exhaustion, immediately rotate to next model candidate
-            if (status === 503 || status === 429 || status === "UNAVAILABLE" || status === "RESOURCE_EXHAUSTED") {
-                await sleep(150);
-                continue;
-            }
+            console.warn(`Model ${model} attempt failed (${err?.message || err}); rotating to next model candidate.`);
+            await sleep(150);
+            continue;
         }
     }
 
