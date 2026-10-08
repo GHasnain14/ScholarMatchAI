@@ -61,9 +61,9 @@ async function generateContentWithRetry(params: {
 
     for (const model of CANDIDATE_MODELS) {
         try {
-            // Guard with a 9-second timeout per model so requests never hang indefinitely
+            // Guard with a 25-second timeout per model to allow complex generation without premature aborts
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error(`Timeout after 9s calling model ${model}`)), 9000)
+                setTimeout(() => reject(new Error(`Timeout after 25s calling model ${model}`)), 25000)
             );
 
             const callPromise = ai.models.generateContent({
