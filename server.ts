@@ -41,9 +41,9 @@ function getAi(): GoogleGenAI {
 
 // Recommended model candidate pool in priority order (starting with highest throughput, lowest latency flash)
 const CANDIDATE_MODELS = [
-    "gemini-3.8-flash",
     "gemini-3.1-flash-lite",
     "gemini-flash-latest",
+    "gemini-3.8-flash",
     "gemini-3.1-pro-preview",
 ];
 
@@ -61,9 +61,9 @@ async function generateContentWithRetry(params: {
 
     for (const model of CANDIDATE_MODELS) {
         try {
-            // Guard with a 25-second timeout per model to allow complex generation without premature aborts
+            // Guard with a 30-second timeout per model to allow complex generation without premature aborts
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error(`Timeout after 25s calling model ${model}`)), 25000)
+                setTimeout(() => reject(new Error(`Timeout after 30s calling model ${model}`)), 30000)
             );
 
             const callPromise = ai.models.generateContent({
