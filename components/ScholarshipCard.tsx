@@ -18,7 +18,8 @@ import {
     CheckCircle,
     Check,
     Bell,
-    Flame
+    Flame,
+    Mic
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { calculateDaysRemaining } from '../services/deadlineNotificationService';
@@ -32,6 +33,7 @@ interface ScholarshipCardProps {
     onUpdateStage?: (scholarshipId: string, stage: Scholarship['stage']) => void;
     onUpdateNotes?: (scholarshipId: string, notes: string) => void;
     onOpenGoogleScholar?: (scholarship: Scholarship) => void;
+    onStartInterview?: (scholarship: Scholarship) => void;
 }
 
 const countryFlags: { [key: string]: { flag: string; color: string; bg: string } } = {
@@ -88,6 +90,7 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
     onUpdateStage,
     onUpdateNotes,
     onOpenGoogleScholar,
+    onStartInterview,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isEditingDeadline, setIsEditingDeadline] = useState(false);
@@ -500,17 +503,31 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                         </button>
                     </div>
 
-                    {/* Draft Document Dropdown */}
-                    <div className="relative" ref={menuRef}>
-                        <button
-                            type="button"
-                            onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95"
-                        >
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>Draft Document</span>
-                            <ChevronDown className="w-3 h-3" />
-                        </button>
+                    {/* Actions: Mock Interview & Draft Document */}
+                    <div className="flex items-center gap-2">
+                        {onStartInterview && (
+                            <button
+                                type="button"
+                                onClick={() => onStartInterview(scholarship)}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-violet-50 dark:bg-violet-950/60 hover:bg-violet-100 dark:hover:bg-violet-900/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 transition-all shadow-xs hover:scale-105 active:scale-95"
+                                title="Practice Technical & Behavioral Interview with AI feedback"
+                            >
+                                <Mic className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                                <span className="hidden sm:inline">Mock Interview</span>
+                            </button>
+                        )}
+
+                        {/* Draft Document Dropdown */}
+                        <div className="relative" ref={menuRef}>
+                            <button
+                                type="button"
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95"
+                            >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>Draft Document</span>
+                                <ChevronDown className="w-3 h-3" />
+                            </button>
 
                         {isMenuOpen && (
                             <div className="absolute right-0 bottom-full mb-2 w-64 rounded-2xl bg-white dark:bg-slate-800 shadow-2xl border border-slate-200 dark:border-slate-700 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
@@ -533,5 +550,6 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                 </div>
             </div>
         </div>
-    );
+    </div>
+);
 };

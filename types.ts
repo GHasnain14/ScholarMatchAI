@@ -18,8 +18,30 @@ export interface Scholarship {
     // Client-side tracking
     feedback?: 'good' | 'poor';
     bookmarked?: boolean;
-    stage?: 'Discovered' | 'Email Sent' | 'Interview Scheduled' | 'Application Submitted' | 'Offer Received';
+    stage?: ScholarshipStage;
     notes?: string;
+    timelineMilestones?: TimelineMilestone[];
+}
+
+export type ScholarshipStage = 
+    | 'Discovered' 
+    | 'Professors Contacted' 
+    | 'Email Sent' 
+    | 'SOP Drafted' 
+    | 'Interview Scheduled' 
+    | 'Application Submitted' 
+    | 'Offer Received';
+
+export interface TimelineMilestone {
+    key: 'discovered' | 'professors_contacted' | 'sop_drafted' | 'interview_scheduled' | 'application_submitted' | 'offer_received';
+    label: string;
+    title: string;
+    description: string;
+    completed: boolean;
+    date?: string; // YYYY-MM-DD
+    notes?: string;
+    actionDocType?: DocumentType;
+    actionLabel?: string;
 }
 
 export interface MasterProgram {
@@ -147,6 +169,8 @@ export enum DocumentType {
 export enum Tab {
     FindPositions = "find-positions",
     MasterPrograms = "master-programs",
+    InterviewSimulation = "interview-simulation",
+    ApplicationTimeline = "application-timeline",
     CvInsights = "cv-insights",
     WatermarkRemover = "watermark-remover",
     DraftDocuments = "draft-documents",
@@ -165,6 +189,16 @@ export interface WikipediaAiTellFinding {
     examples: string[];
 }
 
+export interface SentenceCadenceMetrics {
+    sentenceCount: number;
+    lengths: number[];
+    average: number;
+    stdDev: number;
+    shortest: number;
+    longest: number;
+    hasConsecutiveUniform: boolean;
+}
+
 export interface QualityAuditReport {
     passed: boolean;
     overallScore: number;
@@ -173,6 +207,13 @@ export interface QualityAuditReport {
     turnitinDetectionRisk: number;
     burstinessScore: number;
     semanticIntegrityScore: number;
+    cadenceMetrics?: SentenceCadenceMetrics;
+    detectorRisks?: {
+        turnitin: number;
+        gptZero: number;
+        copyLeaks: number;
+        winstonAi: number;
+    };
     checks: {
         copulaNaturalness: 'PASSED' | 'FLAGGED';
         parallelismAvoidance: 'PASSED' | 'FLAGGED';
@@ -182,7 +223,51 @@ export interface QualityAuditReport {
         factualFidelity: 'PASSED' | 'FLAGGED';
     };
     evaluatorNotes: string;
-    revisionHistory?: { pass: number; description: string; score: number }[];
+    revisionHistory?: { pass: number; description: string; score: number; details?: string }[];
+}
+
+export interface QCIssueItem {
+    type: 'repetitive-structure' | 'formal-vocabulary' | 'lack-of-sentence-variation';
+    severity: 'high' | 'medium' | 'low';
+    snippet: string;
+    description: string;
+    suggestion: string;
+}
+
+export interface QCAnalysisResult {
+    passed: boolean;
+    turnitinRisk: number; // 0-100%
+    overallQualityScore: number; // 0-100
+    burstinessScore: number; // 0-100
+    cadenceMetrics: SentenceCadenceMetrics;
+    repetitiveStructuresCount: number;
+    formalVocabularyCount: number;
+    sentenceVariationIssuesCount: number;
+    issues: QCIssueItem[];
+    detectedVocabulary: string[];
+    consecutiveUniformClusters: number[][];
+    redraftDirectives: string[];
+}
+
+export interface QCIterationStep {
+    iterationNumber: number;
+    title: string;
+    text: string;
+    score: number;
+    turnitinRisk: number;
+    burstinessScore: number;
+    cadenceMetrics: SentenceCadenceMetrics;
+    issuesFixed: string[];
+    remainingIssuesCount: number;
+    timestamp: number;
+}
+
+export interface QCWorkflowResult {
+    finalText: string;
+    finalAnalysis: QCAnalysisResult;
+    iterations: QCIterationStep[];
+    qualityAudit: QualityAuditReport;
+    totalIterationsRun: number;
 }
 
 export interface WatermarkScanResult {
@@ -267,3 +352,71 @@ export interface ScholarAuthorProfile {
     interests?: string[];
     topPapers: ScholarPaper[];
 }
+
+export interface InterviewQuestion {
+    id: string;
+    question: string;
+    category: 'technical' | 'behavioral' | 'research-vision' | 'fit';
+    interviewerContext: string;
+    evaluationCriteria: string[];
+    suggestedFramework?: string; // e.g. "STAR Method" or "Hypothesis -> Methodology -> Results"
+    keyPointsToCover?: string[];
+    sampleOutline?: string;
+}
+
+export interface InterviewFeedbackMetrics {
+    technicalAccuracy: number; // 0-100
+    structureAndClarity: number; // 0-100
+    fitAndMotivation: number; // 0-100
+    academicMaturity: number; // 0-100
+}
+
+export interface InterviewQuestionFeedback {
+    score: number; // 0-100
+    rating: 'Exceptional' | 'Strong Candidate' | 'Adequate' | 'Needs Preparation';
+    metrics: InterviewFeedbackMetrics;
+    strengths: string[];
+    weaknesses: string[];
+    actionableTips: string[];
+    modelAnswer: string;
+}
+
+export interface InterviewUserResponse {
+    questionId: string;
+    answerText: string;
+    timeSpentSeconds?: number;
+    audioRecorded?: boolean;
+    feedback?: InterviewQuestionFeedback;
+    isEvaluated?: boolean;
+}
+
+export interface InterviewApplicationTarget {
+    id: string;
+    professorName: string;
+    institution: string;
+    researchArea: string;
+    universityTier?: string;
+    country?: string;
+    degreeLevel?: string;
+    keyKeywords?: string[];
+    reasonForMatch?: string;
+    notes?: string;
+}
+
+export interface InterviewSessionSummary {
+    id: string;
+    target: InterviewApplicationTarget;
+    overallScore: number;
+    readinessTier: 'Interview Ready (Top 5%)' | 'Strongly Competitive' | 'Solid with Minor Polish' | 'Needs Targeted Preparation';
+    categoryScores: {
+        technical: number;
+        behavioral: number;
+        researchVision: number;
+        fit: number;
+    };
+    overallStrengths: string[];
+    overallImprovementAreas: string[];
+    recommendationsForInterviewDay: string[];
+    completedAt: string;
+}
+

@@ -15,7 +15,8 @@ import {
     ExternalLink,
     Clock,
     Zap,
-    Heart
+    Heart,
+    Mic
 } from 'lucide-react';
 
 interface AboutSectionProps {
@@ -28,6 +29,13 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onNavigateToTab }) =
     };
 
     const features = [
+        {
+            icon: Mic,
+            title: "Faculty Mock Interview Simulator",
+            description: "Generates tailored technical and behavioral interview questions for your chosen lab or program. Practice speaking or writing your answers with instant multi-metric AI scoring, STAR-method audits, and faculty model answers.",
+            badge: "Interactive Voice & AI",
+            color: "from-violet-600 to-indigo-600"
+        },
         {
             icon: Compass,
             title: "Global Research Lab Matching",
@@ -87,6 +95,11 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onNavigateToTab }) =
             step: "03",
             title: "Draft Materials & Track Deadlines",
             desc: "Generate tailored outreach emails and proposals, cite recent papers, set deadlines, and manage your pipeline."
+        },
+        {
+            step: "04",
+            title: "Simulate Faculty Interviews & Rehearse",
+            desc: "Practice technical questions and behavioral scenarios with live AI scoring, STAR feedback, and gold-standard model answers."
         }
     ];
 

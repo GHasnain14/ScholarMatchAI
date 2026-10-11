@@ -15,7 +15,8 @@ import {
     ChevronDown,
     Layers,
     Info,
-    BookOpen
+    BookOpen,
+    Mic
 } from 'lucide-react';
 import { Tab } from '../types';
 import { User } from 'firebase/auth';
@@ -77,6 +78,15 @@ export const Header: React.FC<HeaderProps> = ({
             activeColor: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shadow-2xs font-bold',
         },
         {
+            id: Tab.InterviewSimulation,
+            label: 'Interview Simulation',
+            icon: Mic,
+            color: 'from-violet-600 to-indigo-600',
+            badge: 'AI MOCK',
+            badgeColor: 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white',
+            activeColor: 'bg-violet-50 text-violet-700 dark:bg-violet-950/80 dark:text-violet-300 border-violet-200 dark:border-violet-800 shadow-2xs font-bold',
+        },
+        {
             id: Tab.FindPositions,
             label: 'Find Opportunities',
             icon: Compass,
@@ -113,6 +123,14 @@ export const Header: React.FC<HeaderProps> = ({
             badge: savedCount,
             badgeColor: 'bg-amber-500 text-white',
             activeColor: 'bg-amber-50 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-200 dark:border-amber-800 shadow-2xs font-bold',
+        },
+        {
+            id: Tab.ApplicationTimeline,
+            label: 'Application Timeline',
+            icon: Layers,
+            badge: savedCount > 0 ? `${savedCount}` : undefined,
+            badgeColor: 'bg-indigo-600 text-white',
+            activeColor: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shadow-2xs font-bold',
         },
         {
             id: Tab.Deadlines,

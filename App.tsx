@@ -9,6 +9,7 @@ import { CvRadarChart } from './components/CvRadarChart';
 import { ApplicationTracker } from './components/ApplicationTracker';
 import { WatermarkRemover } from './components/WatermarkRemover';
 import { MasterProgramsExplorer } from './components/MasterProgramsExplorer';
+import { InterviewSimulation } from './components/InterviewSimulation';
 import { DeadlineNotificationCenter } from './components/DeadlineNotificationCenter';
 import { LinkedInFormatterModal, LinkedInIcon } from './components/LinkedInFormatterModal';
 import { GoogleScholarModal, GoogleScholarIcon } from './components/GoogleScholarModal';
@@ -36,7 +37,7 @@ import {
     draftDocument, 
     analyzeCv 
 } from './services/geminiService';
-import { Scholarship, DocumentType, Tab, CvAnalysis, PositionSearchType, CvProfile } from './types';
+import { Scholarship, MasterProgram, DocumentType, Tab, CvAnalysis, PositionSearchType, CvProfile } from './types';
 import { 
     signInWithGoogle, 
     signOutUser, 
@@ -172,6 +173,7 @@ const App: React.FC = () => {
     const [draftFeedback, setDraftFeedback] = useState<string>('');
     const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
     const [watermarkInitialText, setWatermarkInitialText] = useState<string>('');
+    const [selectedInterviewApplication, setSelectedInterviewApplication] = useState<Scholarship | null>(null);
     const [isLinkedInModalOpen, setIsLinkedInModalOpen] = useState<boolean>(false);
 
     // Google Scholar Search & Paper Explorer State
@@ -832,6 +834,30 @@ const App: React.FC = () => {
         handleDraftDocument(docType, details);
     }, [handleDraftDocument]);
 
+    const handleStartInterviewFromCard = useCallback((scholarship: Scholarship) => {
+        setSelectedInterviewApplication(scholarship);
+        setActiveTab(Tab.InterviewSimulation);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, []);
+
+    const handleStartInterviewFromProgram = useCallback((program: MasterProgram) => {
+        const pseudoScholarship: Scholarship = {
+            id: program.id || `mp-${Date.now()}`,
+            professorName: `${program.universityName} Admissions & Faculty Committee`,
+            institution: program.universityName,
+            researchArea: `${program.programTitle} (${program.department})`,
+            link: program.officialProgramUrl || '#',
+            reasonForMatch: program.matchRationale || `Target ${program.degreeType} Program in ${program.country}`,
+            universityTier: program.ranking?.nationalRank || 'Top-Tier',
+            country: program.country,
+            fundingType: program.tuitionAndFees?.isTuitionFree ? 'Tuition-Free' : 'University Program',
+            keyKeywords: program.curriculumOverlapKeywords,
+        };
+        setSelectedInterviewApplication(pseudoScholarship);
+        setActiveTab(Tab.InterviewSimulation);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, []);
+
     // Google Scholar Explorer Handlers
     const handleOpenGoogleScholar = useCallback((query: string = '', author: string = '', inst: string = '') => {
         setScholarModalQuery(query);
@@ -1152,6 +1178,17 @@ const App: React.FC = () => {
                                 setActiveGeneratedDoc(DocumentType.MotivationLetter);
                                 setActiveTab(Tab.DraftDocuments);
                             }}
+                            onStartInterviewForProgram={handleStartInterviewFromProgram}
+                        />
+                    )}
+
+                    {/* TAB: INTERVIEW SIMULATION */}
+                    {activeTab === Tab.InterviewSimulation && (
+                        <InterviewSimulation
+                            scholarships={scholarships}
+                            activeCvText={cvText}
+                            preselectedApplication={selectedInterviewApplication}
+                            onClearPreselectedApplication={() => setSelectedInterviewApplication(null)}
                         />
                     )}
 
@@ -1338,6 +1375,7 @@ const App: React.FC = () => {
                                                         onUpdateStage={handleUpdateStage}
                                                         onUpdateNotes={handleUpdateNotes}
                                                         onOpenGoogleScholar={(s) => handleOpenGoogleScholar('', s.professorName, s.institution)}
+                                                        onStartInterview={handleStartInterviewFromCard}
                                                     />
                                                 ))}
                                             </div>
@@ -1548,6 +1586,7 @@ const App: React.FC = () => {
                             onDraft={handleDraftDocumentFromCard}
                             onUpdateDeadline={handleUpdateDeadline}
                             onImportApplications={handleImportApplications}
+                            onStartInterview={handleStartInterviewFromCard}
                         />
                     )}
 
@@ -1636,6 +1675,7 @@ const App: React.FC = () => {
                                             onUpdateStage={handleUpdateStage}
                                             onUpdateNotes={handleUpdateNotes}
                                             onOpenGoogleScholar={(s) => handleOpenGoogleScholar('', s.professorName, s.institution)}
+                                            onStartInterview={handleStartInterviewFromCard}
                                         />
                                     ))}
                                 </div>

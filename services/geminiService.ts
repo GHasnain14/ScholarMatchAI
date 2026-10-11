@@ -9,7 +9,10 @@ import {
     ScholarPaper,
     ScholarAuthorProfile,
     WatermarkCleaningMode,
-    QualityAuditReport
+    QualityAuditReport,
+    InterviewQuestion,
+    InterviewQuestionFeedback,
+    InterviewApplicationTarget
 } from '../types';
 
 import {
@@ -19,6 +22,11 @@ import {
     synthesizeClientCleanText,
     searchClientScholarPapers
 } from '../utils/clientFallbackSynthesis';
+
+import {
+    synthesizeInterviewQuestionsFallback,
+    synthesizeInterviewFeedbackFallback
+} from '../utils/interviewSimulationHelper';
 
 import { generateQualityAuditReport } from '../utils/watermarkCleaner';
 
@@ -419,3 +427,57 @@ export const fetchScholarAuthorProfile = async (name: string, institution?: stri
         topPapers: papers.slice(0, 5)
     };
 };
+
+/**
+ * Call backend to generate tailored interview questions for an application/lab
+ */
+export const generateInterviewQuestions = async (params: {
+    application: InterviewApplicationTarget;
+    cvText?: string;
+    focus?: 'balanced' | 'technical' | 'behavioral' | 'fit';
+    count?: number;
+}): Promise<{
+    questions: InterviewQuestion[];
+    interviewerProfile?: {
+        name: string;
+        role: string;
+        labName: string;
+        interviewTone: string;
+    };
+}> => {
+    return postWithStaticFallback<{ questions: InterviewQuestion[]; interviewerProfile?: any }>(
+        '/api/generate-interview-questions',
+        params,
+        () => ({
+            interviewerProfile: {
+                name: params.application.professorName || 'Principal Investigator',
+                role: 'Faculty Search & Admissions Committee',
+                labName: `${params.application.researchArea || 'Research'} Laboratory`,
+                interviewTone: 'Rigorous Scholarly Assessment'
+            },
+            questions: synthesizeInterviewQuestionsFallback(
+                params.application,
+                params.cvText,
+                params.focus || 'balanced',
+                params.count || 5
+            )
+        })
+    );
+};
+
+/**
+ * Call backend to evaluate candidate response to an interview question
+ */
+export const evaluateInterviewResponse = async (params: {
+    question: InterviewQuestion;
+    userAnswer: string;
+    application: InterviewApplicationTarget;
+    cvText?: string;
+}): Promise<InterviewQuestionFeedback> => {
+    return postWithStaticFallback<InterviewQuestionFeedback>(
+        '/api/evaluate-interview-response',
+        params,
+        () => synthesizeInterviewFeedbackFallback(params.question, params.userAnswer, params.application)
+    );
+};
+

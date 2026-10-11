@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Scholarship, DocumentType } from '../types';
+import { Scholarship, DocumentType, TimelineMilestone } from '../types';
+import { ApplicationTimeline } from './ApplicationTimeline';
 import { 
     BookmarkCheck, 
     Sparkles, 
@@ -20,7 +21,10 @@ import {
     Copy,
     AlertCircle,
     FileSpreadsheet,
-    Bell
+    Bell,
+    Mic,
+    Layers,
+    Compass
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { calculateDaysRemaining } from '../services/deadlineNotificationService';
@@ -33,6 +37,11 @@ interface ApplicationTrackerProps {
     onDraft: (scholarship: Scholarship, docType: DocumentType) => void;
     onUpdateDeadline: (id: string, deadline: string) => void;
     onImportApplications?: (imported: Scholarship[]) => void;
+    onStartInterview?: (scholarship: Scholarship) => void;
+    onUpdateTimelineMilestones?: (id: string, milestones: TimelineMilestone[]) => void;
+    onNavigateToFindPositions?: () => void;
+    onLoadSampleApplications?: () => void;
+    initialViewMode?: 'kanban' | 'timeline';
 }
 
 const STAGES: { id: Scholarship['stage']; label: string; icon: any; color: string; bg: string }[] = [
@@ -51,6 +60,7 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
     onDraft,
     onUpdateDeadline,
     onImportApplications,
+    onStartInterview,
 }) => {
     const [selectedStageFilter, setSelectedStageFilter] = useState<string>('all');
     const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
@@ -546,6 +556,17 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                                             <FileEdit className="w-3 h-3" />
                                             Draft SOP
                                         </button>
+                                        {onStartInterview && (
+                                            <button
+                                                type="button"
+                                                onClick={() => onStartInterview(item)}
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-colors"
+                                                title="Simulate technical & behavioral faculty interview for this application"
+                                            >
+                                                <Mic className="w-3 h-3" />
+                                                Mock Interview
+                                            </button>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center gap-2">
