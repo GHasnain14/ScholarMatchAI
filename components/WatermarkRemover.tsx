@@ -32,7 +32,8 @@ import {
     SearchCode,
     ThumbsUp,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Loader2
 } from 'lucide-react';
 import { WatermarkCleaningMode, WatermarkScanResult, QualityAuditReport, QCWorkflowResult, QCIterationStep, QCAnalysisResult } from '../types';
 import {
@@ -87,6 +88,9 @@ export const WatermarkRemover: React.FC<WatermarkRemoverProps> = ({
     const [inputTab, setInputTab] = useState<'edit' | 'inspect'>('edit');
     const [dragActive, setDragActive] = useState<boolean>(false);
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
+    const [isExtractingFile, setIsExtractingFile] = useState<boolean>(false);
+    const [extractionProgressText, setExtractionProgressText] = useState<string>('');
+    const [fileExtractionError, setFileExtractionError] = useState<string | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -378,22 +382,158 @@ export const WatermarkRemover: React.FC<WatermarkRemoverProps> = ({
         URL.revokeObjectURL(url);
     };
 
-    // File upload handler
+    // Helper to get PDF.js
+    const getPdfjs = async (): Promise<any> => {
+        if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+            const lib = (window as any).pdfjsLib;
+            if (lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerSrc) {
+                lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+            return lib;
+        }
+        for (let attempt = 0; attempt < 8; attempt++) {
+            await new Promise(r => setTimeout(r, 200));
+            if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+                const lib = (window as any).pdfjsLib;
+                if (lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerSrc) {
+                    lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                }
+                return lib;
+            }
+        }
+        return null;
+    };
+
+    // Helper to get Mammoth for DOCX
+    const getMammoth = async (): Promise<any> => {
+        if (typeof window !== 'undefined' && (window as any).mammoth) {
+            return (window as any).mammoth;
+        }
+        for (let attempt = 0; attempt < 8; attempt++) {
+            await new Promise(r => setTimeout(r, 200));
+            if (typeof window !== 'undefined' && (window as any).mammoth) {
+                return (window as any).mammoth;
+            }
+        }
+        return null;
+    };
+
+    // Extract text from PDF using PDF.js
+    const extractPdfText = async (file: File): Promise<string> => {
+        const pdfjs = await getPdfjs();
+        if (!pdfjs) {
+            throw new Error('PDF reader script is currently loading. Please wait a few moments and try again, or paste your text directly.');
+        }
+
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+
+        if (pdf.numPages === 0) {
+            throw new Error('The uploaded PDF has 0 pages.');
+        }
+
+        const pageTexts: string[] = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+            setExtractionProgressText(`Extracting PDF page ${i} of ${pdf.numPages}...`);
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+
+            let pageText = '';
+            let lastY: number | null = null;
+
+            for (const item of content.items as any[]) {
+                if (typeof item.str !== 'string') continue;
+
+                if (item.hasEOL) {
+                    pageText += item.str + '\n';
+                    lastY = null;
+                } else if (item.transform && item.transform[5] !== undefined) {
+                    const currentY = item.transform[5];
+                    if (lastY !== null && Math.abs(currentY - lastY) > 5) {
+                        pageText += '\n' + item.str;
+                    } else {
+                        const needsSpace = pageText.length > 0 && !pageText.endsWith('\n') && !pageText.endsWith(' ');
+                        pageText += (needsSpace ? ' ' : '') + item.str;
+                    }
+                    lastY = currentY;
+                } else {
+                    const needsSpace = pageText.length > 0 && !pageText.endsWith('\n') && !pageText.endsWith(' ');
+                    pageText += (needsSpace ? ' ' : '') + item.str;
+                }
+            }
+
+            const cleanedPage = pageText.replace(/[ \t]+/g, ' ').trim();
+            if (cleanedPage) {
+                pageTexts.push(cleanedPage);
+            }
+        }
+
+        const fullText = pageTexts.join('\n\n');
+        if (!fullText.trim()) {
+            throw new Error('The uploaded PDF appears to be a scanned image or contains no selectable digital text. Please upload a PDF with digital text or paste text directly.');
+        }
+        return fullText.trim();
+    };
+
+    // File upload handler supporting PDF, DOCX, and plain text
     const handleFileUpload = async (file: File) => {
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const text = e.target?.result as string;
-            if (text) {
-                setInputText(text);
-                setIsProcessed(false);
-                setCleanedText('');
-                setStatusMessage(`Loaded file "${file.name}". Click "Clean Watermarks & Humanize" to process.`);
-                setTimeout(() => setStatusMessage(null), 4000);
+        setIsExtractingFile(true);
+        setFileExtractionError(null);
+        setExtractionProgressText(`Loading file "${file.name}"...`);
+
+        try {
+            const ext = file.name.split('.').pop()?.toLowerCase() || '';
+            let text = '';
+
+            if (ext === 'pdf' || file.type === 'application/pdf') {
+                setExtractionProgressText(`Reading PDF document "${file.name}"...`);
+                text = await extractPdfText(file);
+            } else if (ext === 'docx' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                setExtractionProgressText(`Parsing Word document "${file.name}"...`);
+                const mammoth = await getMammoth();
+                if (!mammoth) {
+                    throw new Error('Word parser is loading. Please try again in a few moments.');
+                }
+                const arrayBuffer = await file.arrayBuffer();
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                text = (result.value || '').trim();
+                if (!text) {
+                    throw new Error('The Word document appears to be empty.');
+                }
+            } else {
+                // Text-based files (.txt, .md, .tex, .rtf)
+                text = await file.text();
+                // Safety check: if file was a PDF disguised with wrong extension or raw PDF stream
+                if (text.startsWith('%PDF-') || text.includes('/Filter /FlateDecode')) {
+                    setExtractionProgressText(`Detected PDF binary stream, decoding text...`);
+                    text = await extractPdfText(file);
+                }
             }
-        };
-        reader.readAsText(file);
+
+            if (!text.trim()) {
+                throw new Error('No readable text found in the uploaded file.');
+            }
+
+            setInputText(text);
+            setIsProcessed(false);
+            setCleanedText('');
+            setInputTab('edit');
+            const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+            setStatusMessage(`Loaded "${file.name}" (${wordCount.toLocaleString()} words). Ready for Turnitin bypass & humanization.`);
+            setTimeout(() => setStatusMessage(null), 5000);
+        } catch (err: any) {
+            console.error('File extraction error:', err);
+            setFileExtractionError(err?.message || 'Failed to extract text from the uploaded document.');
+        } finally {
+            setIsExtractingFile(false);
+            setExtractionProgressText('');
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
     };
 
     const handleDrop = (e: React.DragEvent) => {
@@ -1414,10 +1554,19 @@ export const WatermarkRemover: React.FC<WatermarkRemoverProps> = ({
                             onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
                             onDragLeave={() => setDragActive(false)}
                             onDrop={handleDrop}
-                            className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all flex flex-col shadow-sm ${
+                            className={`relative bg-white dark:bg-slate-900 rounded-2xl border transition-all flex flex-col shadow-sm ${
                                 dragActive ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/20' : 'border-slate-200/80 dark:border-slate-800'
                             }`}
                         >
+                            {/* Drag and Drop Overlay */}
+                            {dragActive && (
+                                <div className="absolute inset-0 z-30 bg-indigo-600/90 backdrop-blur-xs rounded-2xl flex flex-col items-center justify-center text-white p-6 animate-in fade-in pointer-events-none">
+                                    <Upload className="w-10 h-10 mb-2 animate-bounce" />
+                                    <p className="text-base font-bold">Drop your PDF, Word, or Text file here</p>
+                                    <p className="text-xs text-indigo-100 mt-1">We will automatically extract text, remove watermarks, and humanize it.</p>
+                                </div>
+                            )}
+
                             {/* Input Header */}
                             <div className="flex items-center justify-between p-4 border-b border-slate-200/80 dark:border-slate-800">
                                 <div className="flex items-center gap-2">
@@ -1463,28 +1612,66 @@ export const WatermarkRemover: React.FC<WatermarkRemoverProps> = ({
                                         className="hidden"
                                     />
                                     <button
+                                        type="button"
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                        title="Upload text or draft document"
+                                        disabled={isExtractingFile}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors cursor-pointer"
+                                        title="Upload PDF, DOCX, or TXT draft document"
                                     >
-                                        <Upload className="w-3.5 h-3.5" />
-                                        <span>Upload</span>
+                                        {isExtractingFile ? (
+                                            <>
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600 dark:text-indigo-400" />
+                                                <span>Extracting...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="w-3.5 h-3.5" />
+                                                <span>Upload</span>
+                                            </>
+                                        )}
                                     </button>
 
                                     {inputText && (
                                         <button
+                                            type="button"
                                             onClick={() => {
                                                 setInputText('');
                                                 setCleanedText('');
                                                 setIsProcessed(false);
+                                                setFileExtractionError(null);
                                             }}
-                                            className="px-2 py-1 text-xs text-slate-400 hover:text-rose-500 transition-colors"
+                                            className="px-2 py-1 text-xs text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
                                         >
                                             Clear
                                         </button>
                                     )}
                                 </div>
                             </div>
+
+                            {/* Extraction In-Progress Indicator Banner */}
+                            {isExtractingFile && (
+                                <div className="mx-4 mt-3 p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 text-xs flex items-center gap-2 animate-pulse">
+                                    <Loader2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-spin shrink-0" />
+                                    <span className="font-semibold">{extractionProgressText || 'Extracting digital text from document...'}</span>
+                                </div>
+                            )}
+
+                            {/* Extraction Error Banner */}
+                            {fileExtractionError && (
+                                <div className="mx-4 mt-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs flex items-center justify-between gap-3 shadow-2xs">
+                                    <div className="flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                                        <span>{fileExtractionError}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFileExtractionError(null)}
+                                        className="text-xs font-bold underline hover:no-underline text-rose-700 dark:text-rose-300 cursor-pointer"
+                                    >
+                                        Dismiss
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Input Content Area (Always Directly Editable) */}
                             <div className="p-4 flex-1 flex flex-col min-h-[380px]">

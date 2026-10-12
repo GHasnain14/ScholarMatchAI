@@ -210,7 +210,7 @@ export const ApplicationTimeline: React.FC<ApplicationTimelineProps> = ({
         });
 
         // Trigger confetti if Offer Received is newly marked
-        if (highestCompletedStage === 'Offer Received' && selectedScholarshipForModal.stage !== 'Offer Received') {
+        if ((highestCompletedStage as string) === 'Offer Received' && (selectedScholarshipForModal.stage as string) !== 'Offer Received') {
             try {
                 confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
             } catch (e) {}

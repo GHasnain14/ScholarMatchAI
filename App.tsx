@@ -7,6 +7,7 @@ import { ScholarshipCard } from './components/ScholarshipCard';
 import { CvSummaryCard } from './components/CvSummaryCard';
 import { CvRadarChart } from './components/CvRadarChart';
 import { ApplicationTracker } from './components/ApplicationTracker';
+import { ApplicationTimeline } from './components/ApplicationTimeline';
 import { WatermarkRemover } from './components/WatermarkRemover';
 import { MasterProgramsExplorer } from './components/MasterProgramsExplorer';
 import { InterviewSimulation } from './components/InterviewSimulation';
@@ -37,7 +38,7 @@ import {
     draftDocument, 
     analyzeCv 
 } from './services/geminiService';
-import { Scholarship, MasterProgram, DocumentType, Tab, CvAnalysis, PositionSearchType, CvProfile } from './types';
+import { Scholarship, MasterProgram, DocumentType, Tab, CvAnalysis, PositionSearchType, CvProfile, TimelineMilestone } from './types';
 import { 
     signInWithGoogle, 
     signOutUser, 
@@ -573,6 +574,98 @@ const App: React.FC = () => {
             prev.map(s => (s.id === scholarshipId ? { ...s, notes } : s))
         );
     };
+
+    const handleUpdateTimelineMilestones = useCallback((scholarshipId: string, milestones: TimelineMilestone[]) => {
+        setScholarships(prev =>
+            prev.map(s => (s.id === scholarshipId ? { ...s, timelineMilestones: milestones } : s))
+        );
+    }, []);
+
+    const handleSeedSampleApplications = useCallback(() => {
+        const today = new Date();
+        const addDays = (d: number) => {
+            const date = new Date(today);
+            date.setDate(date.getDate() + d);
+            return date.toISOString().slice(0, 10);
+        };
+
+        const sampleTracked: Scholarship[] = [
+            {
+                id: `sample-app-1`,
+                professorName: 'Prof. Dr. Angela Schoellig',
+                institution: 'Technical University of Munich (TUM)',
+                country: 'Germany',
+                universityTier: 'Top-Tier',
+                researchArea: 'Safety-Critical Robot Learning & Autonomous Systems',
+                reasonForMatch: 'Strong alignment with candidate PyTorch, ROS 2 and robotics control background.',
+                stage: 'Professors Contacted',
+                deadline: addDays(45),
+                notes: 'Contacted lab coordinator via email on Oct 1. Emphasized ROS 2 and PyTorch control thesis.',
+                link: 'https://www.ce.cit.tum.de/srl',
+                fundingType: 'Fully Funded (Research Assistantship / TV-L E13)',
+                matchScore: 96,
+                bookmarked: true,
+                keyKeywords: ['Robot Learning', 'Control Theory', 'Trajectory Optimization'],
+            },
+            {
+                id: `sample-app-2`,
+                professorName: 'Prof. Yoshua Bengio',
+                institution: 'Mila - Quebec AI Institute / Univ. of Montreal',
+                country: 'Canada',
+                universityTier: 'Top-Tier',
+                researchArea: 'Deep Learning, GFlowNets & AI for Drug Discovery',
+                reasonForMatch: 'Pioneering laboratory in deep learning architectures, generative flows, and scientific discovery.',
+                stage: 'SOP Drafted',
+                deadline: addDays(28),
+                notes: 'Statement of Purpose drafted and tailored. Referenced recent ICML generative flow paper.',
+                link: 'https://mila.quebec',
+                fundingType: 'Fully Funded Graduate Fellowship',
+                matchScore: 95,
+                bookmarked: true,
+                keyKeywords: ['Generative AI', 'GFlowNets', 'Scientific Discovery'],
+            },
+            {
+                id: `sample-app-3`,
+                professorName: 'Prof. Pieter Abbeel',
+                institution: 'UC Berkeley (BAIR)',
+                country: 'USA',
+                universityTier: 'Top-Tier',
+                researchArea: 'Deep Reinforcement Learning & Foundation Models for Robotics',
+                reasonForMatch: 'World-renowned laboratory for robotics, imitation learning, and reinforcement learning.',
+                stage: 'Interview Scheduled',
+                deadline: addDays(12),
+                notes: 'Technical discussion and Zoom presentation scheduled. Practiced with AI Mock Interview simulation.',
+                link: 'https://bair.berkeley.edu',
+                fundingType: 'Fully Funded GSR (Graduate Student Researcher)',
+                matchScore: 97,
+                bookmarked: true,
+                keyKeywords: ['Reinforcement Learning', 'Robotics', 'Imitation Learning'],
+            },
+            {
+                id: `sample-app-4`,
+                professorName: 'Prof. Dr. Sami Haddadin',
+                institution: 'TUM Munich Institute of Robotics and Machine Intelligence (MIRMI)',
+                country: 'Germany',
+                universityTier: 'Top-Tier',
+                researchArea: 'Embodied AI, Soft Tactile Robotics & Human-Centered Interaction',
+                reasonForMatch: 'Flagship European robotics institute with extensive industry-funded graduate fellowships.',
+                stage: 'Application Submitted',
+                deadline: addDays(5),
+                notes: 'Full dossier, VPD uni-assist certificate and letters of recommendation uploaded to portal.',
+                link: 'https://www.mirmi.tum.de',
+                fundingType: 'Fully Funded Research Grant',
+                matchScore: 94,
+                bookmarked: true,
+                keyKeywords: ['Embodied AI', 'Tactile Sensing', 'Human-Robot Interaction'],
+            },
+        ];
+
+        setScholarships(prev => {
+            const existingIds = new Set(prev.map(s => s.id));
+            const toAdd = sampleTracked.filter(s => !existingIds.has(s.id));
+            return [...toAdd, ...prev];
+        });
+    }, []);
 
     const handleImportApplications = useCallback((imported: Scholarship[]) => {
         setScholarships((prev) => {
@@ -1587,6 +1680,25 @@ const App: React.FC = () => {
                             onUpdateDeadline={handleUpdateDeadline}
                             onImportApplications={handleImportApplications}
                             onStartInterview={handleStartInterviewFromCard}
+                            onUpdateTimelineMilestones={handleUpdateTimelineMilestones}
+                            onNavigateToFindPositions={() => setActiveTab(Tab.FindPositions)}
+                            onLoadSampleApplications={handleSeedSampleApplications}
+                        />
+                    )}
+
+                    {/* TAB: APPLICATION LIFECYCLE TIMELINE */}
+                    {activeTab === Tab.ApplicationTimeline && (
+                        <ApplicationTimeline 
+                            scholarships={scholarships}
+                            onUpdateStage={handleUpdateStage}
+                            onUpdateNotes={handleUpdateNotes}
+                            onUpdateDeadline={handleUpdateDeadline}
+                            onDraftDocument={handleDraftDocumentFromCard}
+                            onStartInterview={handleStartInterviewFromCard}
+                            onUpdateTimelineMilestones={handleUpdateTimelineMilestones}
+                            onToggleBookmark={handleToggleBookmark}
+                            onNavigateToFindPositions={() => setActiveTab(Tab.FindPositions)}
+                            onLoadSampleApplications={handleSeedSampleApplications}
                         />
                     )}
 

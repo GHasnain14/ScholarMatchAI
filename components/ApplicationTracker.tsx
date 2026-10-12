@@ -61,7 +61,12 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
     onUpdateDeadline,
     onImportApplications,
     onStartInterview,
+    onUpdateTimelineMilestones,
+    onNavigateToFindPositions,
+    onLoadSampleApplications,
+    initialViewMode = 'kanban',
 }) => {
+    const [viewMode, setViewMode] = useState<'kanban' | 'timeline'>(initialViewMode);
     const [selectedStageFilter, setSelectedStageFilter] = useState<string>('all');
     const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
     const [noteDraft, setNoteDraft] = useState<string>('');
@@ -300,7 +305,7 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                         type="button"
                         onClick={handleExportCSV}
                         disabled={trackedItems.length === 0}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm transition-all border border-white/20 active:scale-95 disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm transition-all border border-white/20 active:scale-95 disabled:opacity-50 cursor-pointer"
                         title="Export as CSV for Excel / Google Sheets"
                     >
                         <FileSpreadsheet className="w-4 h-4 text-blue-200" />
@@ -309,6 +314,58 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                 </div>
             </div>
 
+            {/* View Mode Switcher Bar */}
+            <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 sm:p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('kanban')}
+                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            viewMode === 'kanban'
+                                ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs ring-1 ring-slate-200 dark:ring-slate-600'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                    >
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Kanban Cards View</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('timeline')}
+                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            viewMode === 'timeline'
+                                ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs ring-1 ring-slate-200 dark:ring-slate-600'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                    >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Visual Timeline Roadmap</span>
+                    </button>
+                </div>
+
+                <div className="text-xs text-slate-500 dark:text-slate-400 px-2 font-medium">
+                    {viewMode === 'timeline'
+                        ? 'Mapping 6 key milestones per tracked scholarship'
+                        : `${trackedItems.length} active opportunities tracked`}
+                </div>
+            </div>
+
+            {/* Conditional Render: Visual Timeline Roadmap vs Kanban Cards */}
+            {viewMode === 'timeline' ? (
+                <ApplicationTimeline
+                    scholarships={scholarships}
+                    onUpdateStage={onUpdateStage}
+                    onUpdateNotes={onUpdateNotes}
+                    onUpdateDeadline={onUpdateDeadline}
+                    onDraftDocument={onDraft}
+                    onStartInterview={onStartInterview}
+                    onUpdateTimelineMilestones={onUpdateTimelineMilestones}
+                    onToggleBookmark={onToggleBookmark}
+                    onNavigateToFindPositions={onNavigateToFindPositions}
+                    onLoadSampleApplications={onLoadSampleApplications}
+                />
+            ) : (
+                <>
             {/* Notification alert banner */}
             {notificationMessage && (
                 <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 text-xs font-semibold flex items-center justify-between shadow-2xs animate-in fade-in">
@@ -595,6 +652,8 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                         );
                     })}
                 </div>
+            )}
+                </>
             )}
         </div>
     );

@@ -75,7 +75,8 @@ const tierStyles: { [key: string]: { badge: string; border: string } } = {
 
 const STAGES: Scholarship['stage'][] = [
     'Discovered',
-    'Email Sent',
+    'Professors Contacted',
+    'SOP Drafted',
     'Interview Scheduled',
     'Application Submitted',
     'Offer Received',
@@ -349,7 +350,7 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                             {scholarship.stage || 'Discovered'}
                         </span>
                     </div>
-                    <div className="grid grid-cols-5 gap-1">
+                    <div className="grid grid-cols-6 gap-1">
                         {STAGES.map((stg, i) => {
                             const isCurrent = (scholarship.stage || 'Discovered') === stg;
                             const isPassed = STAGES.indexOf(scholarship.stage || 'Discovered') >= i;
