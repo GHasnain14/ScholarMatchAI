@@ -10,6 +10,8 @@ export interface Scholarship {
     matchScore?: number; // 0-100
     fundingType?: 'Fully Funded' | 'Partial Tuition' | 'Research Assistantship' | 'Fellowship' | 'Varies' | string;
     keyKeywords?: string[];
+    scholarUrl?: string;
+    officialLabUrl?: string;
     // Extended fields
     tuitionFees?: string;
     ranking?: string;

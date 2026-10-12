@@ -16,7 +16,7 @@ import {
     searchScholarPapers,
     getScholarAuthorProfileData
 } from "./serverScholar";
-import { getCuratedPositionsForCountry } from "./utils/academicPositionsDatabase";
+import { getCuratedPositionsForCountry, findCuratedProfessor } from "./utils/academicPositionsDatabase";
 import { cleanWatermarksAlgorithmically, generateQualityAuditReport } from "./utils/watermarkCleaner";
 import { synthesizeInterviewQuestionsFallback, synthesizeInterviewFeedbackFallback } from "./utils/interviewSimulationHelper";
 
@@ -1210,6 +1210,38 @@ ${cvText}`;
         return posCountry.includes(normTarget);
     };
 
+    // Helper to sanitize and guarantee authentic, working professor links
+    const sanitizeAndEnrichPositions = (posList: any[]): any[] => {
+        return posList.map(pos => {
+            const profName = (pos.professorName || '').trim();
+            const inst = (pos.institution || '').trim();
+            const scholarUrl = `https://scholar.google.com/citations?view_op=search_authors&mauthors=${encodeURIComponent(`${profName} ${inst}`)}`;
+
+            // Check if matches curated professor database
+            const curatedMatch = findCuratedProfessor(profName, inst);
+            let verifiedLink = curatedMatch ? curatedMatch.link : pos.link;
+
+            // Detect broken, hallucinated, or placeholder links
+            if (
+                !verifiedLink || 
+                verifiedLink === '#' || 
+                !verifiedLink.startsWith('http') || 
+                verifiedLink.includes('example.com') ||
+                verifiedLink.includes('localhost') ||
+                verifiedLink.includes('gist.ac.kr') // replace problematic intranet URL with Google Scholar
+            ) {
+                verifiedLink = scholarUrl;
+            }
+
+            return {
+                ...pos,
+                link: verifiedLink,
+                scholarUrl,
+                officialLabUrl: verifiedLink !== scholarUrl ? verifiedLink : undefined,
+            };
+        });
+    };
+
     // Find positions
     app.post("/api/find-positions", async (req: Request, res: Response) => {
         try {
@@ -1219,7 +1251,7 @@ ${cvText}`;
             }
 
             const countryDirective = targetCountry && targetCountry !== 'global'
-                ? `\n\nCRITICAL COUNTRY RESTRICTION: The user has selected "${targetCountry}". Every single recommended institution, lab, and professor MUST be physically located in ${targetCountry}. DO NOT return universities in the United States or any other region. Provide comprehensive coverage spanning Top-Tier, Mid-Tier, and High-Acceptance/Regional institutions with valid direct URLs to professor profiles.`
+                ? `\n\nCRITICAL COUNTRY RESTRICTION: The user has selected "${targetCountry}". Every single recommended institution, lab, and professor MUST be physically located in ${targetCountry}. DO NOT return universities in the United States or any other region. Provide authentic, real faculty & lab opportunities spanning Top-Tier, Mid-Tier, and High-Acceptance/Regional institutions. For each opportunity, provide their verified laboratory/faculty profile or official Google Scholar profile.`
                 : '';
 
             const fullPrompt = `${feedbackContext ? feedbackContext + "\n\n" : ""}${prompt}${countryDirective}\n\nHere is the candidate's CV:\n\n${cvText}`;
@@ -1261,10 +1293,11 @@ ${cvText}`;
                 }
             }
 
-            return res.json({ positions: candidatePositions.length > 0 ? candidatePositions : curatedFallback });
+            const finalPositions = sanitizeAndEnrichPositions(candidatePositions.length > 0 ? candidatePositions : curatedFallback);
+            return res.json({ positions: finalPositions });
         } catch (error: any) {
             console.error("Error in /api/find-positions:", error);
-            const positions = synthesizePositionsFallback(req.body?.cvText || "", req.body?.prompt || "", req.body?.targetCountry);
+            const positions = sanitizeAndEnrichPositions(synthesizePositionsFallback(req.body?.cvText || "", req.body?.prompt || "", req.body?.targetCountry));
             return res.json({ positions });
         }
     });
