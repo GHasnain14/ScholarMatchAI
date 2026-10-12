@@ -49,13 +49,10 @@ import {
     testConnection 
 } from './services/firebaseService';
 import { 
-    loadLocalProfiles, 
-    saveLocalProfiles, 
-    getActiveProfileId, 
-    setActiveProfileId, 
-    mergeLocalAndCloudProfiles 
+    loadSavedCvText, 
+    saveSavedCvText,
+    isFakeTemplateText
 } from './utils/cvProfileManager';
-import { CvVersionSwitcher } from './components/CvVersionSwitcher';
 import { User } from 'firebase/auth';
 import { 
     FileText, 
@@ -123,29 +120,12 @@ const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
-    // CV Profiles (Local Storage & Cloud persistence)
-    const [profiles, setProfiles] = useState<CvProfile[]>(() => loadLocalProfiles());
-    const [activeProfileId, setActiveProfileIdState] = useState<string | null>(() => {
-        const saved = getActiveProfileId();
-        const initial = loadLocalProfiles();
-        if (saved && initial.some(p => p.id === saved)) {
-            return saved;
-        }
-        return initial[0]?.id || null;
-    });
-
+    // Authentic Candidate CV State
     const [cvText, setCvText] = useState<string>(() => {
-        const initial = loadLocalProfiles();
-        const saved = getActiveProfileId();
-        const active = initial.find(p => p.id === saved) || initial[0];
-        return active ? active.text : (localStorage.getItem('scholar_cv_text') || '');
+        return loadSavedCvText();
     });
 
     const [cvAnalysis, setCvAnalysis] = useState<CvAnalysis | null>(() => {
-        const initial = loadLocalProfiles();
-        const saved = getActiveProfileId();
-        const active = initial.find(p => p.id === saved) || initial[0];
-        if (active?.analysis) return active.analysis;
         try {
             const legacy = localStorage.getItem('scholar_cv_analysis');
             return legacy ? JSON.parse(legacy) : null;
@@ -186,11 +166,6 @@ const App: React.FC = () => {
     // Deadlines Tab sorting state
     const [deadlineSortOrder, setDeadlineSortOrder] = useState<'soonest' | 'farthest'>('soonest');
 
-    // Active CV Profile memo
-    const activeProfile = useMemo(() => {
-        return profiles.find(p => p.id === activeProfileId) || profiles[0] || null;
-    }, [profiles, activeProfileId]);
-
     // Search and Filtering State
     const [selectedSearchRegion, setSelectedSearchRegion] = useState<PositionSearchType | null>(() => {
         try {
@@ -214,60 +189,14 @@ const App: React.FC = () => {
             setIsAuthLoading(false);
 
             const scopeUid = user ? user.uid : null;
-            const scopedProfiles = loadLocalProfiles(scopeUid);
-            setProfiles(scopedProfiles);
-
-            const savedId = getActiveProfileId(scopeUid);
-            const activeId = (savedId && scopedProfiles.some(p => p.id === savedId))
-                ? savedId
-                : scopedProfiles[0]?.id || null;
-            setActiveProfileIdState(activeId);
-
-            const activeP = scopedProfiles.find(p => p.id === activeId) || scopedProfiles[0];
-            if (activeP) {
-                setCvText(activeP.text);
-                if (activeP.analysis) {
-                    setCvAnalysis(activeP.analysis);
-                }
-            }
-
-            if (user) {
-                // Sync current user's local profiles to their personal Firestore document collection
-                try {
-                    for (const p of scopedProfiles) {
-                        await saveCvProfileToFirestore(user.uid, p);
-                    }
-                } catch (e) {
-                    console.debug('Initial local-to-cloud sync notice:', e);
-                }
+            const saved = loadSavedCvText(scopeUid);
+            if (saved && !isFakeTemplateText(saved)) {
+                setCvText(saved);
             }
         });
 
         return () => unsubscribeAuth();
     }, []);
-
-    // 2. Real-time Firestore sync when authenticated
-    useEffect(() => {
-        if (!currentUser) return;
-
-        const unsubscribeFirestore = subscribeToCvProfiles(
-            currentUser.uid,
-            (cloudProfiles) => {
-                if (cloudProfiles && cloudProfiles.length > 0) {
-                    setProfiles((prev) => {
-                        const merged = mergeLocalAndCloudProfiles(prev, cloudProfiles);
-                        saveLocalProfiles(merged, currentUser.uid);
-                        return merged;
-                    });
-                }
-            },
-            (err) => {
-                console.warn('Live CV profiles sync notice:', err);
-            }
-        );
-
-        return () => unsubscribeFirestore();
-    }, [currentUser]);
 
     const handleNavigateToWatermarkCleaner = useCallback((initialText?: string) => {
         if (initialText) {
@@ -340,7 +269,7 @@ const App: React.FC = () => {
     }, [scholarships]);
 
     const generateSummaryForCv = useCallback(async (text: string) => {
-        if (!text || !text.trim()) {
+        if (!text || !text.trim() || isFakeTemplateText(text)) {
             setCvAnalysis(null);
             return;
         }
@@ -349,135 +278,39 @@ const App: React.FC = () => {
         try {
             const analysis = await analyzeCv(text);
             setCvAnalysis(analysis);
-
-            // Cache analysis onto the active profile
-            setProfiles((prev) => {
-                const updated = prev.map((p) => {
-                    if (p.id === activeProfileId) {
-                        return { ...p, analysis, updatedAt: new Date().toISOString() };
-                    }
-                    return p;
-                });
-                saveLocalProfiles(updated);
-                return updated;
-            });
+            try {
+                localStorage.setItem('scholar_cv_analysis', JSON.stringify(analysis));
+            } catch {}
         } catch (err: any) {
             console.error('Failed to generate CV analysis:', err);
             setSummaryError(err?.message || 'Unable to generate candidate review. You can still search for positions or click Try Again.');
         } finally {
             setIsGeneratingSummary(false);
         }
-    }, [activeProfileId]);
+    }, []);
 
-    // Profile Management Handlers (Strictly Scoped to Current User or Isolated Guest Workspace)
-    const handleSelectProfile = useCallback((profileId: string) => {
-        const target = profiles.find(p => p.id === profileId);
-        if (!target) return;
-        setActiveProfileIdState(profileId);
-        setActiveProfileId(profileId, currentUser?.uid);
-        setCvText(target.text);
-        if (target.analysis) {
-            setCvAnalysis(target.analysis);
-        } else {
-            generateSummaryForCv(target.text);
-        }
-    }, [profiles, currentUser, generateSummaryForCv]);
-
-    const handleCreateProfile = useCallback(async (newProfile: CvProfile) => {
-        const updated = [newProfile, ...profiles];
-        setProfiles(updated);
-        saveLocalProfiles(updated, currentUser?.uid);
-        setActiveProfileIdState(newProfile.id);
-        setActiveProfileId(newProfile.id, currentUser?.uid);
-        setCvText(newProfile.text);
-        generateSummaryForCv(newProfile.text);
-
-        if (currentUser) {
-            try {
-                await saveCvProfileToFirestore(currentUser.uid, newProfile);
-            } catch (e) {
-                console.error('Failed to save new profile to personal Firestore:', e);
-            }
-        }
-    }, [profiles, currentUser, generateSummaryForCv]);
-
-    const handleUpdateProfile = useCallback(async (updatedProfile: CvProfile) => {
-        const updated = profiles.map(p => p.id === updatedProfile.id ? updatedProfile : p);
-        setProfiles(updated);
-        saveLocalProfiles(updated, currentUser?.uid);
-
-        if (activeProfileId === updatedProfile.id) {
-            setCvText(updatedProfile.text);
-        }
-
-        if (currentUser) {
-            try {
-                await saveCvProfileToFirestore(currentUser.uid, updatedProfile);
-            } catch (e) {
-                console.error('Failed to update profile in personal Firestore:', e);
-            }
-        }
-    }, [profiles, activeProfileId, currentUser]);
-
-    const handleDeleteProfile = useCallback(async (profileId: string) => {
-        if (profiles.length <= 1) return;
-        const remaining = profiles.filter(p => p.id !== profileId);
-        setProfiles(remaining);
-        saveLocalProfiles(remaining, currentUser?.uid);
-
-        if (activeProfileId === profileId) {
-            const next = remaining[0];
-            setActiveProfileIdState(next.id);
-            setActiveProfileId(next.id, currentUser?.uid);
-            setCvText(next.text);
-            if (next.analysis) {
-                setCvAnalysis(next.analysis);
-            } else {
-                generateSummaryForCv(next.text);
-            }
-        }
-
-        // Only delete from Firestore under this user's personal UID if authenticated
-        if (currentUser) {
-            try {
-                await deleteCvProfileFromFirestore(currentUser.uid, profileId);
-            } catch (e) {
-                console.error('Failed to delete profile from personal Firestore:', e);
-            }
-        }
-    }, [profiles, activeProfileId, currentUser, generateSummaryForCv]);
-
-    const handleSaveCurrentTextToActiveProfile = useCallback(async () => {
-        if (!activeProfileId) return;
-        const active = profiles.find(p => p.id === activeProfileId);
-        if (!active) return;
-
-        const updated: CvProfile = {
-            ...active,
-            text: cvText,
-            analysis: cvAnalysis,
-            updatedAt: new Date().toISOString(),
-        };
-
-        await handleUpdateProfile(updated);
-    }, [activeProfileId, profiles, cvText, cvAnalysis, handleUpdateProfile]);
+    const handleClearCv = useCallback(() => {
+        setCvText('');
+        setCvAnalysis(null);
+        setGeneratedDocuments({});
+        setActiveGeneratedDoc(null);
+        setError(null);
+        saveSavedCvText('', currentUser?.uid);
+        try {
+            localStorage.removeItem('scholar_cv_analysis');
+            localStorage.removeItem('scholar_cv_text');
+        } catch {}
+    }, [currentUser]);
 
     const handleSignIn = async () => {
         try {
             setIsAuthLoading(true);
             const user = await signInWithGoogle();
             setCurrentUser(user);
-            const userProfiles = loadLocalProfiles(user.uid);
-            setProfiles(userProfiles);
-            const activeId = getActiveProfileId(user.uid) || userProfiles[0]?.id || null;
-            setActiveProfileIdState(activeId);
-            const active = userProfiles.find(p => p.id === activeId) || userProfiles[0];
-            if (active) {
-                setCvText(active.text);
-                setCvAnalysis(active.analysis || null);
-            }
-            for (const p of userProfiles) {
-                await saveCvProfileToFirestore(user.uid, p);
+            const savedText = loadSavedCvText(user.uid);
+            if (savedText && !isFakeTemplateText(savedText)) {
+                setCvText(savedText);
+                generateSummaryForCv(savedText);
             }
         } catch (e) {
             console.error('Sign-in failed:', e);
@@ -490,50 +323,29 @@ const App: React.FC = () => {
         try {
             await signOutUser();
             setCurrentUser(null);
-            // Switch cleanly to isolated guest workspace
-            const guestProfiles = loadLocalProfiles(null);
-            setProfiles(guestProfiles);
-            const activeId = getActiveProfileId(null) || guestProfiles[0]?.id || null;
-            setActiveProfileIdState(activeId);
-            const active = guestProfiles.find(p => p.id === activeId) || guestProfiles[0];
-            if (active) {
-                setCvText(active.text);
-                setCvAnalysis(active.analysis || null);
+            const guestText = loadSavedCvText(null);
+            if (guestText && !isFakeTemplateText(guestText)) {
+                setCvText(guestText);
+                generateSummaryForCv(guestText);
             }
         } catch (e) {
             console.error('Sign-out failed:', e);
         }
     };
 
-    const handleCvUpload = (text: string) => {
-        setCvText(text);
+    const handleCvUpload = useCallback((text: string) => {
+        const clean = text.trim();
+        setCvText(clean);
         setGeneratedDocuments({});
         setActiveGeneratedDoc(null);
         setError(null);
-        generateSummaryForCv(text);
-
-        // Also update active profile text in scoped storage
-        if (activeProfileId) {
-            setProfiles((prev) => {
-                const updated = prev.map((p) => {
-                    if (p.id === activeProfileId) {
-                        return { ...p, text, updatedAt: new Date().toISOString() };
-                    }
-                    return p;
-                });
-                saveLocalProfiles(updated, currentUser?.uid);
-                return updated;
-            });
-
-            if (currentUser) {
-                const active = profiles.find(p => p.id === activeProfileId);
-                if (active) {
-                    saveCvProfileToFirestore(currentUser.uid, { ...active, text, updatedAt: new Date().toISOString() })
-                        .catch(err => console.debug('Auto-sync CV text failed:', err));
-                }
-            }
+        saveSavedCvText(clean, currentUser?.uid);
+        if (clean && !isFakeTemplateText(clean)) {
+            generateSummaryForCv(clean);
+        } else {
+            setCvAnalysis(null);
         }
-    };
+    }, [currentUser, generateSummaryForCv]);
 
     const handleUpdateCvFromCleaner = (newCvText: string) => {
         handleCvUpload(newCvText);
@@ -1113,7 +925,6 @@ const App: React.FC = () => {
                     isAuthLoading={isAuthLoading}
                     onSignIn={handleSignIn}
                     onSignOut={handleSignOut}
-                    cvVersionsCount={profiles.length}
                     onOpenGoogleScholar={() => handleOpenGoogleScholar(searchQuery || 'Academic Research', '', '')}
                     onOpenAbout={() => document.getElementById('about-section')?.scrollIntoView({ behavior: 'smooth' })}
                 />
@@ -1131,7 +942,7 @@ const App: React.FC = () => {
                                     Candidate Profile & Academic CV
                                 </h2>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Save, switch, and tailor multiple CV versions for different fields or universities with automatic cloud persistence.
+                                    Upload your authentic academic CV. Analysis and opportunity matching are grounded 100% strictly on what is written in your document.
                                 </p>
                             </div>
                         </div>
@@ -1147,26 +958,11 @@ const App: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* CV Version Switcher & Multi-field Library */}
-                    <CvVersionSwitcher
-                        profiles={profiles}
-                        activeProfileId={activeProfileId}
-                        onSelectProfile={handleSelectProfile}
-                        onCreateProfile={handleCreateProfile}
-                        onUpdateProfile={handleUpdateProfile}
-                        onDeleteProfile={handleDeleteProfile}
-                        currentCvText={cvText}
-                        onSaveCurrentTextToActiveProfile={handleSaveCurrentTextToActiveProfile}
-                        isCloudSynced={Boolean(currentUser)}
-                        userEmail={currentUser?.email}
-                        onSignInPrompt={handleSignIn}
-                        onOpenLinkedIn={() => setIsLinkedInModalOpen(true)}
-                    />
-
                     <CVUploader 
                         onCvUpload={handleCvUpload} 
                         currentCvText={cvText}
                         onCleanWatermarks={handleNavigateToWatermarkCleaner}
+                        onClearCv={handleClearCv}
                     />
 
                     {/* Visual Academic Score (0-100) & 3 Specific Profile Strengthening Suggestions */}
@@ -1805,7 +1601,6 @@ const App: React.FC = () => {
             <LinkedInFormatterModal
                 isOpen={isLinkedInModalOpen}
                 onClose={() => setIsLinkedInModalOpen(false)}
-                activeProfile={activeProfile}
                 cvText={cvText}
                 cvAnalysis={cvAnalysis}
             />

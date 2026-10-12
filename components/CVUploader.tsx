@@ -18,68 +18,6 @@ import {
 import { PdfViewer } from './PdfViewer';
 import { generatePdfBlobFromText } from '../utils/pdfHelper';
 
-const SAMPLE_CVS = [
-    {
-        title: '🤖 AI & Computer Vision',
-        badge: 'CS / Machine Learning',
-        color: 'from-blue-500 to-indigo-600',
-        text: `NAME: Alex Chen
-DEGREE: B.S. in Computer Science & Artificial Intelligence (GPA: 3.89/4.0)
-INSTITUTION: University of Science and Technology
-RESEARCH INTERESTS: Deep Learning, Generative Models, Autonomous Robotics, Real-time Computer Vision, Neural Radiance Fields (NeRF).
-
-PUBLICATIONS & WORKSHOPS:
-- Chen, A., et al. "Efficient Spatial Attention for Real-time Robotic Perception." Under review at CVPR Workshop, 2024.
-
-HONORS & AWARDS:
-- National Dean's Academic Excellence Award (Top 2%)
-- 1st Place, National AI Hackathon (Medical Imaging Challenge)
-
-RESEARCH & ACADEMIC EXPERIENCE:
-- Undergraduate Researcher, Visual Perception Lab (2022 - 2024): Developed PyTorch-based neural architectures for 3D point cloud segmentation; optimized model inference using TensorRT yielding a 4.2x speedup on edge devices.
-- Machine Learning Engineering Intern at Robotics Corp (Summer 2023): Designed LiDAR-camera fusion algorithms for autonomous obstacle navigation.
-
-TECHNICAL PROFICIENCIES:
-- Languages: Python, C++, CUDA, PyTorch, TensorFlow, OpenCV, ROS2, Linux.
-- Standardized Tests: TOEFL iBT: 108 (R: 29, L: 28, S: 25, W: 26), GRE: Q: 168, V: 158, AW: 4.5.`,
-    },
-    {
-        title: '🧬 Bioengineering & Genomics',
-        badge: 'Biomedical & Health Tech',
-        color: 'from-emerald-500 to-teal-600',
-        text: `NAME: Maya Lin
-DEGREE: B.S. in Biomedical Engineering (GPA: 3.92/4.0)
-INSTITUTION: State University of Bioengineering
-RESEARCH INTERESTS: Synthetic Biology, CRISPR Gene Editing, Single-cell RNA Sequencing, Biomaterials for Targeted Drug Delivery.
-
-RESEARCH EXPERIENCE:
-- Research Assistant, Molecular Therapeutics Laboratory (2022 - Present): Investigated polymeric nanoparticle vectors for mRNA delivery in oncology models; quantified cellular uptake via flow cytometry and confocal microscopy.
-- Co-author on manuscript: "Lipid Nanoparticle Formulations for Targeted Hepatic Delivery," Journal of Nanomedicine (2023).
-
-SKILLS:
-- Wet Lab: Cell culture, CRISPR-Cas9, PCR, Western Blot, Flow Cytometry, ELISA, Microfluidics.
-- Dry Lab: R (Bioconductor), Python (scikit-learn), NGS Bioinformatics pipelines.
-- Standardized Tests: IELTS Academic 8.0, GRE: Q: 165, V: 161.`,
-    },
-    {
-        title: '⚡ Clean Energy & Materials',
-        badge: 'Materials Science & Renewable Energy',
-        color: 'from-amber-500 to-rose-600',
-        text: `NAME: Lucas Morales
-DEGREE: B.Eng. in Chemical & Materials Engineering (First Class Honours)
-INSTITUTION: Technical University of Engineering
-RESEARCH INTERESTS: Next-generation Lithium-Sulfur Batteries, Solid-State Electrolytes, Perovskite Solar Cells, Electrocatalysis.
-
-RESEARCH & LAB PROJECTS:
-- Thesis Project: "Synthesis of High-Conductivity Composite Polymer Electrolytes for Solid-State Lithium Batteries."
-- Laboratory Technician, Clean Energy Center: Operated SEM, XRD, XPS, and Electrochemical Impedance Spectroscopy (EIS).
-
-AWARDS & DISTINCTIONS:
-- University Research Fellowship for Outstanding Undergraduates
-- Best Undergraduate Poster Presentation, National Renewable Energy Symposium.`,
-    },
-];
-
 const getPdfjs = async (): Promise<any> => {
     if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
         const lib = (window as any).pdfjsLib;
@@ -102,9 +40,15 @@ interface CVUploaderProps {
     onCvUpload: (text: string) => void;
     currentCvText?: string;
     onCleanWatermarks?: (text: string) => void;
+    onClearCv?: () => void;
 }
 
-export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvText, onCleanWatermarks }) => {
+export const CVUploader: React.FC<CVUploaderProps> = ({ 
+    onCvUpload, 
+    currentCvText, 
+    onCleanWatermarks,
+    onClearCv 
+}) => {
     const [fileName, setFileName] = useState<string>('');
     const [isPasting, setIsPasting] = useState<boolean>(false);
     const [pastedText, setPastedText] = useState<string>(currentCvText || '');
@@ -118,8 +62,15 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
     const [showPdfViewer, setShowPdfViewer] = useState<boolean>(false);
     const [pendingExtractedText, setPendingExtractedText] = useState<string>('');
-    const [isCvConfirmed, setIsCvConfirmed] = useState<boolean>(false);
+    const [isCvConfirmed, setIsCvConfirmed] = useState<boolean>(Boolean(currentCvText && currentCvText.trim().length > 50));
     const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+
+    // Sync pastedText if currentCvText changes from outside
+    useEffect(() => {
+        if (currentCvText && !pastedText) {
+            setPastedText(currentCvText);
+        }
+    }, [currentCvText]);
 
     // Clean up object URLs on unmount
     useEffect(() => {
@@ -167,10 +118,11 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                 setUploadedPdfFile(file);
                 setPdfPreviewUrl(url);
                 setPendingExtractedText(textContent);
-                setShowPdfViewer(true);
-                setIsCvConfirmed(false);
+                setPastedText(textContent);
+                setIsCvConfirmed(true);
 
-                // We keep text ready so user can preview directly in application before confirming processing!
+                // Immediately upload and trigger analysis on authentic extracted text
+                onCvUpload(textContent);
                 setIsLoadingFile(false);
                 return;
             } else if (fileExtension === 'docx') {
@@ -193,7 +145,8 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                 throw new Error('The uploaded file appears to be empty. Please paste your text directly.');
             }
 
-            // For non-PDF files, process immediately
+            // Immediately upload and process
+            setPastedText(textContent.trim());
             onCvUpload(textContent.trim());
             setIsCvConfirmed(true);
         } catch (err: any) {
@@ -219,30 +172,33 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
     const handlePasteSubmit = () => {
         if (pastedText.trim()) {
             onCvUpload(pastedText.trim());
-            setFileName('Pasted Academic CV');
+            setFileName('Candidate CV (Pasted Text)');
             setIsPasting(false);
             setError(null);
             setIsCvConfirmed(true);
         }
     };
 
-    const handleLoadSample = (sampleText: string, sampleTitle: string) => {
-        setPastedText(sampleText);
-        setFileName(`Sample: ${sampleTitle}`);
-        onCvUpload(sampleText);
-        setError(null);
-        setIsCvConfirmed(true);
+    const handleClear = () => {
+        setFileName('');
+        setPastedText('');
+        setPendingExtractedText('');
         setUploadedPdfFile(null);
+        if (pdfPreviewUrl && pdfPreviewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(pdfPreviewUrl);
+        }
         setPdfPreviewUrl(null);
         setShowPdfViewer(false);
-    };
-
-    // Confirm and process the previewed PDF
-    const handleConfirmProcess = () => {
-        const textToProcess = pendingExtractedText || currentCvText || '';
-        if (textToProcess.trim()) {
-            onCvUpload(textToProcess.trim());
-            setIsCvConfirmed(true);
+        setIsCvConfirmed(false);
+        setIsPasting(false);
+        setError(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+        if (onClearCv) {
+            onClearCv();
+        } else {
+            onCvUpload('');
         }
     };
 
@@ -273,6 +229,15 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
             } finally {
                 setIsGeneratingPdf(false);
             }
+        }
+    };
+
+    const handleConfirmProcess = () => {
+        const textToProcess = pendingExtractedText || currentCvText || pastedText || '';
+        if (textToProcess.trim()) {
+            onCvUpload(textToProcess.trim());
+            setIsCvConfirmed(true);
+            setShowPdfViewer(false);
         }
     };
 
@@ -359,35 +324,16 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                         >
                             <Edit3 className="w-3.5 h-3.5" /> Edit Text
                         </button>
-                    </div>
-                </div>
-            )}
 
-            {/* PRE-PROCESSING PDF PREVIEW CALLOUT BANNER */}
-            {showPdfViewer && !isCvConfirmed && uploadedPdfFile && (
-                <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-indigo-950/50 dark:via-slate-850 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-800 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                            <FileSearch className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                PDF Document Preview Active
-                            </span>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                                Verify your visual layout and extracted text below. When satisfied, click <strong>"Confirm & Process CV"</strong> to match positions.
-                            </p>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={handleClear}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-800 transition-colors shadow-2xs"
+                            title="Clear this CV and upload a new document"
+                        >
+                            <X className="w-3.5 h-3.5" /> Clear CV
+                        </button>
                     </div>
-
-                    <button
-                        type="button"
-                        onClick={handleConfirmProcess}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/20 transition-all"
-                    >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                        Confirm & Process CV
-                    </button>
                 </div>
             )}
 
@@ -418,7 +364,7 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                     <div className="flex items-center justify-between">
                         <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                             <FileText className="w-4 h-4 text-blue-600" />
-                            Paste Academic CV / Resume
+                            Academic CV Text
                         </label>
                         <span className="text-[11px] text-slate-400">
                             {pastedText.length} characters • {pastedText.split(/\s+/).filter(Boolean).length} words
@@ -437,7 +383,7 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                                 type="button"
                                 onClick={handlePasteSubmit}
                                 disabled={!pastedText.trim()}
-                                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold py-2 px-5 rounded-xl text-xs shadow-md shadow-blue-500/20 transition-all"
+                                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold py-2 px-5 rounded-xl text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer"
                             >
                                 <Sparkles className="w-3.5 h-3.5" />
                                 Save & Analyze Profile
@@ -445,7 +391,7 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                             <button
                                 type="button"
                                 onClick={() => { setIsPasting(false); setError(null); }}
-                                className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium py-2 px-3.5 rounded-xl text-xs hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium py-2 px-3.5 rounded-xl text-xs hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-pointer"
                             >
                                 Cancel
                             </button>
@@ -455,7 +401,7 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                             <button
                                 type="button"
                                 onClick={handleTogglePdfPreview}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 rounded-xl border border-indigo-200 dark:border-indigo-800 transition-all shadow-2xs"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 rounded-xl border border-indigo-200 dark:border-indigo-800 transition-all shadow-2xs cursor-pointer"
                             >
                                 <Eye className="w-3.5 h-3.5" />
                                 Preview as PDF
@@ -498,57 +444,28 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onCvUpload, currentCvTex
                                 Drag & drop your Academic CV or click to browse
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                Supports <span className="font-semibold text-blue-600 dark:text-blue-400">PDF (with in-app visual preview)</span>, DOCX, TXT (Max 10MB)
+                                Supports <span className="font-semibold text-blue-600 dark:text-blue-400">PDF (with automatic text extraction & preview)</span>, Word (.docx), TXT (Max 10MB)
                             </p>
                         </div>
 
                         <div className="flex items-center gap-2 pt-1 flex-wrap justify-center">
-                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                            <span className="text-[11px] font-medium px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 flex items-center gap-1 border border-blue-200 dark:border-blue-900">
                                 <Eye className="w-3 h-3 text-blue-600" /> PDF Interactive Preview
                             </span>
-                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                            <span className="text-[11px] font-medium px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
                                 Word (.docx)
                             </span>
                             <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); setIsPasting(true); }}
-                                className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 hover:underline px-2 py-0.5"
+                                className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 hover:underline px-2 py-0.5 cursor-pointer"
                             >
-                                Or Paste Text →
+                                Or Paste Text Directly →
                             </button>
                         </div>
                     </div>
                 </div>
             )}
-
-            {/* Quick Demo CVs Section for instant testing */}
-            <div className="pt-1">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                        Try Instant Demo Profiles
-                    </span>
-                    <span className="text-[11px] text-slate-400">1-Click Load & PDF Preview</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    {SAMPLE_CVS.map((sample, idx) => (
-                        <button
-                            key={idx}
-                            type="button"
-                            onClick={() => handleLoadSample(sample.text, sample.title)}
-                            className="flex flex-col items-start p-3 text-left bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 rounded-xl transition-all shadow-2xs hover:shadow-xs group"
-                        >
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 flex items-center justify-between w-full">
-                                {sample.title}
-                                <ArrowRight className="w-3 h-3 text-slate-300 group-hover:text-blue-500 transition-transform group-hover:translate-x-0.5" />
-                            </span>
-                            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mt-1">
-                                {sample.badge}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-            </div>
         </div>
     );
 };

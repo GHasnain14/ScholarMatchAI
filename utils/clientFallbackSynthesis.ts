@@ -15,101 +15,196 @@ import { getCuratedPositionsForCountry } from './academicPositionsDatabase';
  * Provides intelligent, instant evaluation when running on static hosting (like GitHub Pages)
  */
 export function synthesizeClientCvAnalysis(cvText: string): CvAnalysis {
-    const textLower = (cvText || '').toLowerCase();
+    const raw = cvText || '';
+    const textLower = raw.toLowerCase();
 
-    // Detect research domain
-    const isAI = textLower.includes("machine learning") || textLower.includes("deep learning") || textLower.includes("nlp") || textLower.includes("computer vision") || textLower.includes("pytorch") || textLower.includes("python");
-    const isBio = textLower.includes("bio") || textLower.includes("genom") || textLower.includes("medical") || textLower.includes("pharma") || textLower.includes("crispr") || textLower.includes("molecular");
-    const isRobotics = textLower.includes("robot") || textLower.includes("control") || textLower.includes("ros") || textLower.includes("embedded") || textLower.includes("sensor");
-    const isEnergy = textLower.includes("energy") || textLower.includes("solar") || textLower.includes("material") || textLower.includes("chem") || textLower.includes("battery");
+    // 1. Detect degree & institution if present
+    const degreeMatch = raw.match(/(?:DEGREE|Education|Degree Pursued|Major)\s*[:\-]\s*([^\n\r]+)/i);
+    const degreeStr = degreeMatch ? degreeMatch[1].trim() : '';
 
-    let primaryField = "Artificial Intelligence & Computational Systems";
-    let topFields = ["Machine Learning & Deep Neural Networks", "Computer Vision & Visual Computing", "Applied AI in Science & Engineering", "Data-Centric Intelligence & MLOps", "Autonomous & Intelligent Systems"];
-    let suggestedKeywords = ["Deep Learning", "PyTorch / TensorFlow", "Computer Vision", "Transformer Architectures", "Empirical Research", "Optimization Algorithms", "Graduate Research Assistantship", "Peer-Reviewed Publications"];
+    const instMatch = raw.match(/(?:INSTITUTION|University|College)\s*[:\-]\s*([^\n\r]+)/i);
+    const instStr = instMatch ? instMatch[1].trim() : '';
 
-    if (isBio) {
-        primaryField = "Bioinformatics & Computational Biomedicine";
-        topFields = ["Computational Genomics & NGS Analysis", "Structural Biology & Protein Modeling", "Biomedical Data Science", "Systems Biology & Metabolic Networks", "Precision Medicine & Therapeutics"];
-        suggestedKeywords = ["Genomic Data Pipelines", "Bioconductor / R", "Molecular Dynamics", "Biomedical Informatics", "CRISPR-Cas Systems", "Translational Medicine", "Laboratory Techniques", "Biostatistics"];
+    // 2. Detect domains based on actual vocabulary in CV
+    const isAI = textLower.includes("machine learning") || textLower.includes("deep learning") || textLower.includes("nlp") || textLower.includes("computer vision") || textLower.includes("pytorch") || textLower.includes("tensorflow") || textLower.includes("neural");
+    const isBio = textLower.includes("bio") || textLower.includes("genom") || textLower.includes("medical") || textLower.includes("pharma") || textLower.includes("crispr") || textLower.includes("molecular") || textLower.includes("cell culture");
+    const isRobotics = textLower.includes("robot") || textLower.includes("control") || textLower.includes("ros") || textLower.includes("embedded") || textLower.includes("sensor") || textLower.includes("mechatronic");
+    const isEnergy = textLower.includes("energy") || textLower.includes("solar") || textLower.includes("battery") || textLower.includes("material") || textLower.includes("electrochem");
+    const isCivil = textLower.includes("civil") || textLower.includes("structural") || textLower.includes("geotech") || textLower.includes("concrete") || textLower.includes("autocad") || textLower.includes("transportation");
+    const isEcon = textLower.includes("econom") || textLower.includes("finance") || textLower.includes("econometric") || textLower.includes("business") || textLower.includes("accounting");
+    const isChem = textLower.includes("chemical") || textLower.includes("chemistry") || textLower.includes("organic") || textLower.includes("synthesis") || textLower.includes("spectroscopy");
+    const isPhysics = textLower.includes("physics") || textLower.includes("quantum") || textLower.includes("astronomy") || textLower.includes("particle") || textLower.includes("optics");
+
+    let primaryField = "Academic & Technical Research";
+    let topFields = ["Applied Research & Methodologies", "Cross-Disciplinary Analytical Systems", "Experimental & Project Investigation"];
+    const suggestedKeywords: string[] = [];
+
+    if (isAI) {
+        primaryField = "Artificial Intelligence & Computational Systems";
+        topFields = ["Machine Learning & Neural Architectures", "Computer Vision & Visual Computing", "Data-Centric Intelligence", "Empirical AI Systems"];
+    } else if (isBio) {
+        primaryField = "Biomedical & Life Sciences";
+        topFields = ["Molecular & Cellular Biology", "Genomics & Bio-Data Pipelines", "Translational Therapeutics", "Biomedical Engineering"];
     } else if (isRobotics) {
-        primaryField = "Robotics, Control Systems & Embedded Autonomy";
-        topFields = ["Mobile Robotics & SLAM", "Reinforcement Learning for Control", "Human-Robot Interaction (HRI)", "Autonomous Navigation & Perception", "Embedded Cyber-Physical Systems"];
-        suggestedKeywords = ["ROS2 / C++", "Kinematics & Dynamics", "Motion Planning", "Computer Vision for Robotics", "Sensor Fusion (LiDAR/IMU)", "Embedded Microcontrollers", "Sim-to-Real Transfer", "State Estimation"];
+        primaryField = "Robotics & Autonomous Systems";
+        topFields = ["Mobile Robotics & Perception", "Control Systems & Dynamic Modeling", "Embedded Cyber-Physical Systems"];
     } else if (isEnergy) {
-        primaryField = "Renewable Energy Systems & Advanced Materials";
-        topFields = ["Next-Gen Battery Chemistry & Storage", "Photovoltaic & Solar Cell Engineering", "Nanomaterials & Catalysis", "Computational Materials Science", "Sustainable Grid Integration"];
-        suggestedKeywords = ["Electrochemical Impedance", "Density Functional Theory (DFT)", "Materials Characterization (XRD/SEM)", "Energy Density Optimization", "Solid-State Electrolytes", "Green Hydrogen Production"];
+        primaryField = "Materials Science & Energy Systems";
+        topFields = ["Advanced Energy Storage & Materials", "Electrochemistry & Functional Materials", "Sustainable Energy Systems"];
+    } else if (isCivil) {
+        primaryField = "Civil & Environmental Engineering";
+        topFields = ["Structural Modeling & Simulation", "Geotechnical & Infrastructure Systems", "Sustainable Urban Engineering"];
+    } else if (isEcon) {
+        primaryField = "Economics, Finance & Quantitative Analysis";
+        topFields = ["Econometric Modeling & Empirical Analysis", "Quantitative Finance & Risk Systems", "Applied Micro/Macroeconomics"];
+    } else if (isChem) {
+        primaryField = "Chemical Sciences & Engineering";
+        topFields = ["Synthetic Chemistry & Molecular Design", "Chemical Process Simulation", "Materials & Catalysis"];
+    } else if (isPhysics) {
+        primaryField = "Physical Sciences & Theoretical Physics";
+        topFields = ["Theoretical & Mathematical Physics", "Condensed Matter & Quantum Systems", "Computational Physics"];
+    } else if (degreeStr) {
+        primaryField = degreeStr;
+        topFields = [`Advanced ${degreeStr}`, `Applied ${degreeStr} Research`, `Computational & Experimental ${degreeStr}`];
     }
 
+    // Extract real keywords present in cvText
+    const candidateKeywords = [
+        "python", "c++", "java", "r", "matlab", "pytorch", "tensorflow", "ros", "ros2", "sql", 
+        "gis", "autocad", "crispr", "pcr", "elisa", "sem", "xrd", "linux", "git", "docker",
+        "deep learning", "machine learning", "data analysis", "statistics", "simulation"
+    ];
+    for (const kw of candidateKeywords) {
+        if (textLower.includes(kw)) {
+            suggestedKeywords.push(kw.charAt(0).toUpperCase() + kw.slice(1));
+        }
+    }
+    if (suggestedKeywords.length < 4) {
+        suggestedKeywords.push("Literature Review", "Experimental Design", "Data Analysis", "Research Methodology");
+    }
+
+    // Check publications in text
+    const hasPubs = textLower.includes("publication") || textLower.includes("paper") || textLower.includes("journal") || textLower.includes("conference") || textLower.includes("workshop") || textLower.includes("under review");
+    // Check GPA in text
+    const hasGpa = textLower.includes("gpa") || textLower.includes("grade") || textLower.includes("first class") || textLower.includes("distinction");
+    // Check English test
+    const hasEnglish = textLower.includes("ielts") || textLower.includes("toefl") || textLower.includes("gre") || textLower.includes("duolingo");
+    // Check thesis
+    const hasThesis = textLower.includes("thesis") || textLower.includes("dissertation") || textLower.includes("capstone");
+
+    // Dynamic strengths based strictly on what is in CV
+    const strengths: string[] = [];
+    if (degreeStr || instStr) {
+        strengths.push(`Documented academic background: ${degreeStr || 'Academic Degree'} ${instStr ? `at ${instStr}` : ''}`);
+    } else {
+        strengths.push("Clear presentation of core academic and professional background");
+    }
+    if (suggestedKeywords.length > 2) {
+        strengths.push(`Direct evidence of technical proficiencies in ${suggestedKeywords.slice(0, 4).join(", ")}`);
+    }
+    if (hasPubs) {
+        strengths.push("Documented research output, manuscripts, or conference contributions in the CV");
+    }
+    if (hasThesis) {
+        strengths.push("Identifiable thesis or dedicated research project execution highlighted in profile");
+    }
+    if (hasGpa) {
+        strengths.push("Academic performance and grade metrics documented in CV");
+    }
+    if (strengths.length < 3) {
+        strengths.push("Solid baseline of practical project and coursework accomplishments documented in CV");
+    }
+
+    // Dynamic gaps based on what is not in CV
+    const gaps: string[] = [];
+    if (!hasPubs) {
+        gaps.push("No formal peer-reviewed publications or preprint links explicitly stated in CV text");
+    }
+    if (!hasEnglish) {
+        gaps.push("Standardized test scores (e.g. IELTS 7.0+ / TOEFL 100+ or GRE) not explicitly stated in CV");
+    }
+    if (!hasGpa) {
+        gaps.push("Academic GPA or numerical class ranking not explicitly listed in the CV");
+    }
+    if (!hasThesis) {
+        gaps.push("Undergraduate/Master's thesis title or dedicated research hypothesis not explicitly detailed");
+    }
+    if (gaps.length < 2) {
+        gaps.push("Specific research extensions linking past projects to future supervisor grants can be highlighted");
+    }
+
+    // Dynamic recommendations
+    const recommendations: string[] = [
+        "Align CV project descriptions with active 2024-2026 grant papers of prospective professors",
+        "Provide direct links (e.g., GitHub, preprints, or technical reports) validating project outcomes",
+        "Highlight concrete quantitative metrics and reproducible outcomes in each experience entry"
+    ];
+
+    // Compute realistic score grounded in evidence
+    let score = 76;
+    if (hasPubs) score += 6;
+    if (hasGpa) score += 4;
+    if (hasEnglish) score += 3;
+    if (hasThesis) score += 4;
+    if (suggestedKeywords.length >= 4) score += 3;
+    score = Math.min(94, Math.max(68, score));
+
     return {
-        summary: `Strong candidate demonstrating well-grounded foundational expertise in ${primaryField}. Profile exhibits a solid blend of theoretical coursework, hands-on empirical experimentation, and technical problem-solving capabilities well-positioned for funded Master's or PhD research opportunities worldwide.`,
-        readinessScore: 88,
-        topResearchFields: topFields,
-        suggestedKeywords: suggestedKeywords,
-        strengths: [
-            "Solid programming and analytical baseline with hands-on project implementation experience",
-            "Demonstrated capacity for self-directed technical investigation and experimental design",
-            "Strong interdisciplinary adaptability bridging algorithmic concepts with real-world applications",
-            "Clear articulation of academic trajectory and enthusiasm for cutting-edge laboratory research"
-        ],
-        gaps: [
-            "Formal first-author peer-reviewed publications can be further reinforced in preliminary outreach",
-            "Specific alignment with supervisor grant milestones should be directly mapped in cold emails",
-            "Standardized language metrics (e.g. IELTS 7.5+ / TOEFL 100+) should be highlighted prominently"
-        ],
-        recommendations: [
-            "Cite 1-2 recent 2024-2026 papers from target professors and propose a concise 2-sentence research extension",
-            "Create a clean GitHub repository portfolio showcasing reproducible research code and documentation",
-            "Emphasize willingness to undertake both foundational Research Assistantship (RA) and Teaching Assistantship (TA) duties"
-        ],
+        summary: `Candidate profile demonstrating background in ${primaryField}${instStr ? ` (${instStr})` : ''}. Analysis reveals documented focus in ${topFields[0] || 'applied research'}, with verifiable skills in ${suggestedKeywords.slice(0, 3).join(", ") || 'academic methodology'}.`,
+        readinessScore: score,
+        topResearchFields: topFields.slice(0, 4),
+        suggestedKeywords: suggestedKeywords.slice(0, 8),
+        strengths: strengths.slice(0, 4),
+        gaps: gaps.slice(0, 3),
+        recommendations: recommendations.slice(0, 3),
         researchProficiencies: [
             {
                 area: "Data Analysis",
-                score: isAI ? 92 : 78,
+                score: isAI || textLower.includes("python") || textLower.includes("r") || textLower.includes("statistics") ? 88 : 68,
                 benchmarkScore: 80,
-                level: isAI ? "Expert" : "Proficient",
-                evidence: isAI ? "Demonstrated Python, PyTorch/TensorFlow, statistical data modeling, and neural pipelines." : "Quantitative data handling and statistical computation coursework.",
-                recommendation: "Highlight reproducible Jupyter notebooks, metric evaluation tables, and benchmark ablation studies."
+                level: isAI || textLower.includes("python") ? "Advanced" : "Proficient",
+                evidence: textLower.includes("python") || textLower.includes("r") ? "Identified data and computational tools in CV" : "Standard coursework data handling documented in text",
+                recommendation: "Highlight concrete datasets, quantitative evaluation metrics, and ablation results in CV"
             },
             {
                 area: "Writing",
-                score: 74,
+                score: hasPubs ? 86 : 72,
                 benchmarkScore: 75,
-                level: "Proficient",
-                evidence: "Academic thesis documentation, project technical reports, and structured research narratives.",
-                recommendation: "Link preprint drafts (arXiv/bioRxiv), conference submissions, or senior thesis DOI links."
+                level: hasPubs ? "Advanced" : "Proficient",
+                evidence: hasPubs ? "Publications, workshop articles, or conference manuscripts listed in CV" : "Project reports, coursework documentation, and structured CV narrative",
+                recommendation: "Provide preprint links (arXiv, Zenodo, or institution repository) for past manuscripts"
             },
             {
                 area: "Lab Tech",
-                score: isRobotics || isBio || isEnergy ? 88 : 72,
+                score: isBio || isRobotics || isEnergy || isChem ? 86 : 70,
                 benchmarkScore: 70,
-                level: isRobotics || isBio || isEnergy ? "Advanced" : "Proficient",
-                evidence: isRobotics ? "ROS/ROS2, sensor integration, actuator testing, and hardware-in-the-loop experiments." : isBio ? "Spectroscopy, PCR protocols, wet-lab assays, and standard operating procedures." : "Experimental prototyping, benchmark instrumentation, and systematic validation.",
-                recommendation: "Explicitly detail lab instruments, hardware specifications, and experimental control protocols."
+                level: isBio || isRobotics || isEnergy || isChem ? "Advanced" : "Proficient",
+                evidence: isBio || isRobotics || isEnergy ? "Experimental procedures, hardware, or lab methods listed in text" : "Standard practical laboratory coursework and exercises documented",
+                recommendation: "Detail exact instrument models, assays, or hardware platforms operated in CV"
             },
             {
                 area: "Theoretical Physics",
-                score: 82,
+                score: isPhysics || isAI || textLower.includes("math") ? 84 : 72,
                 benchmarkScore: 75,
-                level: "Advanced",
-                evidence: "Mathematical modeling, differential equations, linear algebra, and first-principles algorithm derivations.",
-                recommendation: "Emphasize formal analytical proofs, dynamical system simulations, and algorithmic time complexity proofs."
+                level: isPhysics || isAI ? "Advanced" : "Proficient",
+                evidence: textLower.includes("math") || textLower.includes("physics") ? "Mathematical, physical, or algorithmic modeling courses and projects" : "Foundational quantitative and mathematical coursework",
+                recommendation: "Cite formal mathematical formulations or simulation models deployed in projects"
             },
             {
                 area: "Literature Synthesis",
-                score: 78,
+                score: hasPubs || hasThesis ? 82 : 72,
                 benchmarkScore: 75,
-                level: "Proficient",
-                evidence: "Domain background benchmarking, related work contextualization, and comparative academic surveys.",
-                recommendation: "Directly reference 2024-2026 flagship publications from prospective faculty members in outreach."
+                level: hasPubs || hasThesis ? "Proficient" : "Foundational",
+                evidence: hasPubs || hasThesis ? "Academic literature contextualization and thesis investigation documented" : "General domain study and academic coursework",
+                recommendation: "Reference specific 2024-2026 papers from prospective faculty members in preliminary emails"
             },
             {
                 area: "Project Execution",
-                score: 86,
+                score: 84,
                 benchmarkScore: 80,
                 level: "Advanced",
-                evidence: "Git repository management, collaborative research deliverables, milestone tracking, and code reviews.",
-                recommendation: "Showcase continuous integration badges, open-source documentation, and reproducibility guidelines."
+                evidence: "Hands-on projects, internships, or academic milestones detailed throughout the CV",
+                recommendation: "Highlight project deliverables, code repositories, or team leadership accomplishments"
             }
         ]
     };

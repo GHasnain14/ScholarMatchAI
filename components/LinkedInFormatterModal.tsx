@@ -40,7 +40,7 @@ export const LinkedInIcon: React.FC<{ className?: string }> = ({ className = "w-
 interface LinkedInFormatterModalProps {
     isOpen: boolean;
     onClose: () => void;
-    activeProfile: CvProfile | null;
+    activeProfile?: CvProfile | null;
     cvText: string;
     cvAnalysis: CvAnalysis | null;
 }
@@ -73,7 +73,7 @@ export const LinkedInFormatterModal: React.FC<LinkedInFormatterModalProps> = ({
         const profileToUse: CvProfile = activeProfile || {
             id: 'temp',
             name: 'Academic Profile',
-            targetField: 'Academic Research & Technology',
+            targetField: cvAnalysis?.topResearchFields?.[0] || 'Academic Research & Technology',
             text: cvText,
             isDefault: true,
             createdAt: '',
@@ -199,9 +199,9 @@ export const LinkedInFormatterModal: React.FC<LinkedInFormatterModalProps> = ({
                                 </span>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                                <span>Profile: <strong className="text-slate-700 dark:text-slate-200">{activeProfile?.name || 'Default Academic Profile'}</strong></span>
+                                <span>Candidate CV: <strong className="text-slate-700 dark:text-slate-200">{activeProfile?.name || 'Uploaded Academic CV'}</strong></span>
                                 <span>•</span>
-                                <span>Field: <strong className="text-slate-700 dark:text-slate-200">{activeProfile?.targetField || 'Academic Research'}</strong></span>
+                                <span>Field: <strong className="text-slate-700 dark:text-slate-200">{activeProfile?.targetField || cvAnalysis?.topResearchFields?.[0] || 'Academic Research'}</strong></span>
                             </p>
                         </div>
                     </div>

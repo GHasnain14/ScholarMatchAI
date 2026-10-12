@@ -36,74 +36,52 @@ export function getScopedStorageKey(baseKey: string, userId?: string | null): st
     return `${baseKey}_${getUserScopeKey(userId)}`;
 }
 
-export const STARTER_CV_TEMPLATES: Omit<CvProfile, 'id' | 'createdAt' | 'updatedAt' | 'isDefault'>[] = [
-    {
-        name: 'AI & Computer Vision Specialist',
-        targetField: 'Artificial Intelligence & Robotics',
-        targetInstitutions: 'TUM, KAIST, CMU, Oxford, EPFL',
-        notes: 'Tailored with emphasis on PyTorch, 3D point clouds, real-time perception, and CVPR workshop publication.',
-        text: `NAME: Alex Chen
-DEGREE: B.S. in Computer Science & Artificial Intelligence (GPA: 3.89/4.0)
-INSTITUTION: University of Science and Technology
-RESEARCH INTERESTS: Deep Learning, Generative Models, Autonomous Robotics, Real-time Computer Vision, Neural Radiance Fields (NeRF).
+export const STARTER_CV_TEMPLATES: Omit<CvProfile, 'id' | 'createdAt' | 'updatedAt' | 'isDefault'>[] = [];
 
-PUBLICATIONS & WORKSHOPS:
-- Chen, A., et al. "Efficient Spatial Attention for Real-time Robotic Perception." Under review at CVPR Workshop, 2024.
-
-HONORS & AWARDS:
-- National Dean's Academic Excellence Award (Top 2%)
-- 1st Place, National AI Hackathon (Medical Imaging Challenge)
-
-RESEARCH & ACADEMIC EXPERIENCE:
-- Undergraduate Researcher, Visual Perception Lab (2022 - 2024): Developed PyTorch-based neural architectures for 3D point cloud segmentation; optimized model inference using TensorRT yielding a 4.2x speedup on edge devices.
-- Machine Learning Engineering Intern at Robotics Corp (Summer 2023): Designed LiDAR-camera fusion algorithms for autonomous obstacle navigation.
-
-TECHNICAL PROFICIENCIES:
-- Languages: Python, C++, CUDA, PyTorch, TensorFlow, OpenCV, ROS2, Linux.
-- Standardized Tests: TOEFL iBT: 108 (R: 29, L: 28, S: 25, W: 26), GRE: Q: 168, V: 158, AW: 4.5.`,
-    },
-    {
-        name: 'Bioinformatics & Molecular Therapeutics',
-        targetField: 'Biomedical Engineering & Genomics',
-        targetInstitutions: 'Karolinska Institute, KU Leuven, Heidelberg, Johns Hopkins',
-        notes: 'Tailored for molecular oncology labs and gene-editing groups with wet/dry lab synthesis.',
-        text: `NAME: Maya Lin
-DEGREE: B.S. in Biomedical Engineering (GPA: 3.92/4.0)
-INSTITUTION: State University of Bioengineering
-RESEARCH INTERESTS: Synthetic Biology, CRISPR Gene Editing, Single-cell RNA Sequencing, Biomaterials for Targeted Drug Delivery.
-
-RESEARCH EXPERIENCE:
-- Research Assistant, Molecular Therapeutics Laboratory (2022 - Present): Investigated polymeric nanoparticle vectors for mRNA delivery in oncology models; quantified cellular uptake via flow cytometry and confocal microscopy.
-- Co-author on manuscript: "Lipid Nanoparticle Formulations for Targeted Hepatic Delivery," Journal of Nanomedicine (2023).
-
-SKILLS & PROFICIENCIES:
-- Wet Lab: Cell culture, CRISPR-Cas9, PCR, Western Blot, Flow Cytometry, ELISA, Microfluidics.
-- Dry Lab: R (Bioconductor), Python (scikit-learn), NGS Bioinformatics pipelines.
-- Standardized Tests: IELTS Academic 8.0, GRE: Q: 165, V: 161.`,
-    },
-    {
-        name: 'Sustainable Materials & Solid-State Batteries',
-        targetField: 'Materials Science & Renewable Energy',
-        targetInstitutions: 'TU Delft, Chalmers, Tokyo Tech, Nanyang Technological (NTU)',
-        notes: 'Focused on electrochemistry, solid-state electrolyte development, and SEM/EIS analytics.',
-        text: `NAME: Lucas Morales
-DEGREE: B.Eng. in Chemical & Materials Engineering (First Class Honours)
-INSTITUTION: Technical University of Engineering
-RESEARCH INTERESTS: Next-generation Lithium-Sulfur Batteries, Solid-State Electrolytes, Perovskite Solar Cells, Electrocatalysis.
-
-RESEARCH & LAB PROJECTS:
-- Thesis Project: "Synthesis of High-Conductivity Composite Polymer Electrolytes for Solid-State Lithium Batteries."
-- Laboratory Technician, Clean Energy Center: Operated SEM, XRD, XPS, and Electrochemical Impedance Spectroscopy (EIS).
-
-AWARDS & DISTINCTIONS:
-- University Research Fellowship for Outstanding Undergraduates
-- Best Undergraduate Poster Presentation, National Renewable Energy Symposium.
-- Standardized Tests: TOEFL iBT: 105, GRE: Q: 167, V: 156.`,
-    },
-];
+export function isFakeTemplateText(text: string): boolean {
+    if (!text) return false;
+    const lower = text.toLowerCase();
+    return (
+        lower.includes('alex chen') ||
+        lower.includes('maya lin') ||
+        lower.includes('lucas morales') ||
+        lower.includes('artificial intelligence & robotics') && lower.includes('visual perception lab')
+    );
+}
 
 export function generateProfileId(): string {
     return 'cv_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+}
+
+/**
+ * Loads the user's authentic saved CV text, guaranteeing no fake starter templates are loaded.
+ */
+export function loadSavedCvText(userId?: string | null): string {
+    try {
+        const text = localStorage.getItem(LOCAL_STORAGE_LEGACY_CV_TEXT) || '';
+        if (isFakeTemplateText(text)) {
+            localStorage.removeItem(LOCAL_STORAGE_LEGACY_CV_TEXT);
+            return '';
+        }
+        return text;
+    } catch {
+        return '';
+    }
+}
+
+/**
+ * Saves the user's authentic CV text.
+ */
+export function saveSavedCvText(text: string, userId?: string | null): void {
+    try {
+        if (!text || !text.trim()) {
+            localStorage.removeItem(LOCAL_STORAGE_LEGACY_CV_TEXT);
+        } else {
+            localStorage.setItem(LOCAL_STORAGE_LEGACY_CV_TEXT, text.trim());
+        }
+    } catch (e) {
+        console.error('Failed to save CV text:', e);
+    }
 }
 
 export function loadLocalProfiles(userId?: string | null): CvProfile[] {
@@ -114,40 +92,18 @@ export function loadLocalProfiles(userId?: string | null): CvProfile[] {
         if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed;
-            }
-        }
-
-        // Check if legacy unscoped data exists to migrate for this first user
-        const legacyUnscoped = localStorage.getItem('scholar_cv_profiles');
-        if (legacyUnscoped) {
-            try {
-                const parsedLegacy = JSON.parse(legacyUnscoped);
-                if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-                    saveLocalProfiles(parsedLegacy, userId);
-                    return parsedLegacy;
+                // Filter out any fake demo profiles from previous sessions
+                const clean = parsed.filter(p => !isFakeTemplateText(p.text) && !isFakeTemplateText(p.name));
+                if (clean.length > 0) {
+                    return clean;
                 }
-            } catch (e) {
-                // ignore
             }
         }
 
-        // Migrate legacy single CV if present
+        // Check if legacy single CV exists
         const legacyCvText = localStorage.getItem(LOCAL_STORAGE_LEGACY_CV_TEXT);
-        const legacyAnalysisRaw = localStorage.getItem('scholar_cv_analysis');
-        let legacyAnalysis = null;
-        if (legacyAnalysisRaw) {
-            try {
-                legacyAnalysis = JSON.parse(legacyAnalysisRaw);
-            } catch {
-                // ignore
-            }
-        }
-
-        const initialProfiles: CvProfile[] = [];
-
-        if (legacyCvText && legacyCvText.trim().length > 30) {
-            initialProfiles.push({
+        if (legacyCvText && !isFakeTemplateText(legacyCvText) && legacyCvText.trim().length > 30) {
+            const initialProfiles: CvProfile[] = [{
                 id: generateProfileId(),
                 name: 'Primary Academic CV',
                 targetField: 'General / Current Research',
@@ -155,27 +111,13 @@ export function loadLocalProfiles(userId?: string | null): CvProfile[] {
                 isDefault: true,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                analysis: legacyAnalysis,
-            });
+                analysis: null,
+            }];
+            saveLocalProfiles(initialProfiles, userId);
+            return initialProfiles;
         }
 
-        // Add starter templates tailored specifically for this unique user workspace
-        STARTER_CV_TEMPLATES.forEach((tpl, idx) => {
-            initialProfiles.push({
-                id: `cv_${scopeKey.slice(-8)}_${idx + 1}_${Date.now().toString(36)}`,
-                name: tpl.name,
-                targetField: tpl.targetField,
-                targetInstitutions: tpl.targetInstitutions,
-                notes: tpl.notes,
-                text: tpl.text,
-                isDefault: initialProfiles.length === 0 && idx === 0,
-                createdAt: new Date(Date.now() - (idx + 1) * 3600000).toISOString(),
-                updatedAt: new Date(Date.now() - (idx + 1) * 3600000).toISOString(),
-            });
-        });
-
-        saveLocalProfiles(initialProfiles, userId);
-        return initialProfiles;
+        return [];
     } catch (e) {
         console.warn('Failed to load local CV profiles for workspace:', e);
         return [];

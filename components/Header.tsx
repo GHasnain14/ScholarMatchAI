@@ -32,8 +32,6 @@ interface HeaderProps {
     isAuthLoading?: boolean;
     onSignIn: () => void;
     onSignOut: () => void;
-    cvVersionsCount?: number;
-    onOpenCvLibrary?: () => void;
     onOpenGoogleScholar?: () => void;
     onOpenAbout?: () => void;
 }
@@ -49,8 +47,6 @@ export const Header: React.FC<HeaderProps> = ({
     isAuthLoading,
     onSignIn,
     onSignOut,
-    cvVersionsCount = 1,
-    onOpenCvLibrary,
     onOpenGoogleScholar,
     onOpenAbout,
 }) => {
@@ -266,25 +262,6 @@ export const Header: React.FC<HeaderProps> = ({
                                                         <span>Private to your account only</span>
                                                     </div>
                                                 </div>
-
-                                                {onOpenCvLibrary && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setUserMenuOpen(false);
-                                                            onOpenCvLibrary();
-                                                        }}
-                                                        className="w-full text-left px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg flex items-center justify-between cursor-pointer"
-                                                    >
-                                                        <span className="flex items-center gap-1.5">
-                                                            <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                                                            Manage Tailored CVs
-                                                        </span>
-                                                        <span className="text-[10px] font-bold text-slate-400">
-                                                            {cvVersionsCount}
-                                                        </span>
-                                                    </button>
-                                                )}
 
                                                 {onOpenGoogleScholar && (
                                                     <button
