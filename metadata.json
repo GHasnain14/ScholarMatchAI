@@ -1,6 +1,6 @@
 {
   "name": "Academic Application Assistant",
-  "description": "An AI-powered assistant to search Master's programs and scholarships by country, match CVs with university curricula, craft tailored motivation letters, and remove AI watermarks.",
+  "description": "Universal STEM Agentic Faculty & University Discovery Engine with OpenAlex scholarly graph integration, CV readiness matching, and 4-gate QA/QC verification across all science and engineering disciplines.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

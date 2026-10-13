@@ -1,4 +1,5 @@
-import { Scholarship } from '../types';
+import { Scholarship, StemDiscipline } from '../types';
+import { classifyStemDiscipline, auditFacultyOpportunity } from '../services/qaqcService';
 
 export interface CuratedPositionTemplate {
     professorName: string;
@@ -11,6 +12,7 @@ export interface CuratedPositionTemplate {
     baseMatchScore: number;
     fundingType: string;
     keyKeywords: string[];
+    stemDiscipline?: StemDiscipline;
     tuitionFees: string;
     ranking: string;
     applicationRequirements: string[];
@@ -1494,21 +1496,46 @@ export function getCuratedPositionsForCountry(
         ];
     }
 
-    // Detect candidate domain to personalize match score and reason
+    // Detect candidate domain across all STEM fields to personalize match score and reason
     const cvLower = (cvText || '').toLowerCase();
     const hasPython = cvLower.includes('python');
     const hasPyTorch = cvLower.includes('pytorch') || cvLower.includes('tensorflow');
     const hasVision = cvLower.includes('vision') || cvLower.includes('image') || cvLower.includes('cnn');
     const hasNlp = cvLower.includes('nlp') || cvLower.includes('language') || cvLower.includes('bert') || cvLower.includes('transformer');
-    const hasRobotics = cvLower.includes('robot') || cvLower.includes('ros') || cvLower.includes('control');
+    const hasRobotics = cvLower.includes('robot') || cvLower.includes('ros') || cvLower.includes('control') || cvLower.includes('mechatron');
+    const hasBio = cvLower.includes('bio') || cvLower.includes('genom') || cvLower.includes('crispr') || cvLower.includes('cell') || cvLower.includes('molecul');
+    const hasChem = cvLower.includes('chem') || cvLower.includes('polymer') || cvLower.includes('material') || cvLower.includes('battery') || cvLower.includes('catalys');
+    const hasPhysics = cvLower.includes('physic') || cvLower.includes('quantum') || cvLower.includes('optics') || cvLower.includes('laser');
+    const hasMech = cvLower.includes('mechanic') || cvLower.includes('fluid') || cvLower.includes('cad') || cvLower.includes('fea') || cvLower.includes('thermo');
+    const hasEE = cvLower.includes('circuit') || cvLower.includes('semiconductor') || cvLower.includes('vlsi') || cvLower.includes('signal');
+    const hasCivil = cvLower.includes('civil') || cvLower.includes('structural') || cvLower.includes('hydrol') || cvLower.includes('geotech') || cvLower.includes('environ');
 
     return positionsTemplate.map((item, idx) => {
         let scoreBonus = 0;
         let tailoredReason = item.reasonForMatch;
 
-        if (hasPyTorch && item.keyKeywords.some(k => k.toLowerCase().includes('deep learning') || k.toLowerCase().includes('vision') || k.toLowerCase().includes('nlp'))) {
+        if (hasBio && (item.researchArea.toLowerCase().includes('bio') || item.researchArea.toLowerCase().includes('cell') || item.researchArea.toLowerCase().includes('genom'))) {
+            scoreBonus += 4;
+            tailoredReason += ` Candidate's life sciences and biological laboratory competencies directly align with ongoing experimental protocols.`;
+        } else if (hasChem && (item.researchArea.toLowerCase().includes('chem') || item.researchArea.toLowerCase().includes('material') || item.researchArea.toLowerCase().includes('battery'))) {
+            scoreBonus += 4;
+            tailoredReason += ` Direct match with candidate's synthesis, chemical characterization, and functional materials background.`;
+        } else if (hasPhysics && (item.researchArea.toLowerCase().includes('physic') || item.researchArea.toLowerCase().includes('quantum') || item.researchArea.toLowerCase().includes('optics'))) {
+            scoreBonus += 4;
+            tailoredReason += ` Strong grounding in mathematical physics and experimental quantum optics accelerates candidate onboarding.`;
+        } else if (hasMech && (item.researchArea.toLowerCase().includes('mechanic') || item.researchArea.toLowerCase().includes('fluid') || item.researchArea.toLowerCase().includes('aerospace') || item.researchArea.toLowerCase().includes('robot'))) {
+            scoreBonus += 4;
+            tailoredReason += ` Exceptional synergy with candidate's mechanical engineering, simulation, and physical prototyping expertise.`;
+        } else if (hasEE && (item.researchArea.toLowerCase().includes('circuit') || item.researchArea.toLowerCase().includes('semiconductor') || item.researchArea.toLowerCase().includes('vlsi') || item.researchArea.toLowerCase().includes('hardware'))) {
+            scoreBonus += 4;
+            tailoredReason += ` Candidate's electrical systems and hardware prototyping profile matches laboratory research instrumentation.`;
+        } else if (hasCivil && (item.researchArea.toLowerCase().includes('civil') || item.researchArea.toLowerCase().includes('structural') || item.researchArea.toLowerCase().includes('environ'))) {
+            scoreBonus += 4;
+            tailoredReason += ` Alignment with candidate's civil engineering, sustainability assessment, and structural modeling portfolio.`;
+        } else if (hasPyTorch && item.keyKeywords.some(k => k.toLowerCase().includes('deep learning') || k.toLowerCase().includes('vision') || k.toLowerCase().includes('nlp'))) {
             scoreBonus += 2;
         }
+
         if (hasVision && (item.researchArea.toLowerCase().includes('vision') || item.researchArea.toLowerCase().includes('image') || item.researchArea.toLowerCase().includes('3d'))) {
             scoreBonus += 3;
             tailoredReason += ` Candidate's hands-on computer vision experience directly maps to current laboratory experimental benchmarks.`;
@@ -1523,8 +1550,9 @@ export function getCuratedPositionsForCountry(
         }
 
         const calculatedScore = Math.min(99, Math.max(76, item.baseMatchScore + scoreBonus - (idx % 2)));
+        const stemDiscipline = item.stemDiscipline || classifyStemDiscipline(`${item.researchArea} ${(item.keyKeywords || []).join(' ')}`);
 
-        return {
+        const positionObj: Scholarship = {
             professorName: item.professorName,
             institution: item.institution,
             researchArea: item.researchArea,
@@ -1537,11 +1565,18 @@ export function getCuratedPositionsForCountry(
             matchScore: calculatedScore,
             fundingType: item.fundingType,
             keyKeywords: item.keyKeywords,
+            stemDiscipline,
             tuitionFees: item.tuitionFees,
             ranking: item.ranking,
             applicationRequirements: item.applicationRequirements,
-            deadline: item.deadline || new Date(Date.now() + (idx * 4 + 7) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            deadline: item.deadline || new Date(Date.now() + (idx * 4 + 7) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            isCuratedVerified: true
         };
+
+        // Attach 4-gate QA/QC audit results
+        positionObj.qaqc = auditFacultyOpportunity(positionObj, cvText);
+
+        return positionObj;
     });
 }
 

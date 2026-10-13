@@ -26,6 +26,7 @@ import {
 import confetti from 'canvas-confetti';
 import { calculateDaysRemaining } from '../services/deadlineNotificationService';
 import { ProfessorProfileModal } from './ProfessorProfileModal';
+import { QaqcAuditModal } from './QaqcAuditModal';
 
 interface ScholarshipCardProps {
     scholarship: Scholarship;
@@ -99,6 +100,7 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isQaqcModalOpen, setIsQaqcModalOpen] = useState(false);
     const [isEditingDeadline, setIsEditingDeadline] = useState(false);
     const [isEditingNotes, setIsEditingNotes] = useState(false);
     const [notesText, setNotesText] = useState(scholarship.notes || '');
@@ -260,8 +262,17 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                         )}
                     </div>
 
-                    {/* Match Score & Bookmark Star */}
-                    <div className="flex items-center gap-2">
+                    {/* Match Score & QA/QC Verified & Bookmark Star */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => setIsQaqcModalOpen(true)}
+                            title="Inspect 4-Gate QA/QC Verification Audit Certificate"
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/80 dark:hover:bg-emerald-900/90 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 transition-colors shadow-2xs"
+                        >
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>QA/QC Verified</span>
+                        </button>
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-2xs">
                             <Sparkles className="w-3 h-3" />
                             {matchScore}% Match
@@ -742,6 +753,13 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                 onDraftDoc={onDraft}
                 onOpenPapers={onOpenGoogleScholar}
                 onStartInterview={onStartInterview}
+            />
+
+            {/* QA/QC 4-Gate Verification Audit Modal */}
+            <QaqcAuditModal
+                scholarship={scholarship}
+                isOpen={isQaqcModalOpen}
+                onClose={() => setIsQaqcModalOpen(false)}
             />
         </div>
     </div>

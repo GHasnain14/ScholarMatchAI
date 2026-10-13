@@ -19,6 +19,7 @@ import {
 import { getCuratedPositionsForCountry, findCuratedProfessor } from "./utils/academicPositionsDatabase";
 import { cleanWatermarksAlgorithmically, generateQualityAuditReport } from "./utils/watermarkCleaner";
 import { synthesizeInterviewQuestionsFallback, synthesizeInterviewFeedbackFallback } from "./utils/interviewSimulationHelper";
+import { classifyStemDiscipline, auditFacultyOpportunity } from "./services/qaqcService";
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -1256,8 +1257,8 @@ ${cvText}`;
         }
     });
 
-    // Helper to sanitize and guarantee authentic, working professor links
-    const sanitizeAndEnrichPositions = (posList: any[]): any[] => {
+    // Helper to sanitize, classify STEM discipline, and attach QA/QC audit results
+    const sanitizeAndEnrichPositions = (posList: any[], cvText: string = ''): any[] => {
         return posList.map(pos => {
             const profName = (pos.professorName || '').trim();
             const inst = (pos.institution || '').trim();
@@ -1279,13 +1280,22 @@ ${cvText}`;
                 verifiedLink = scholarUrl;
             }
 
-            return {
+            const stemDiscipline = pos.stemDiscipline || classifyStemDiscipline(`${pos.researchArea || ''} ${(pos.keyKeywords || []).join(' ')}`);
+
+            const enriched = {
                 ...pos,
                 link: verifiedLink,
                 scholarUrl,
                 officialLabUrl: verifiedLink !== scholarUrl ? verifiedLink : undefined,
                 isCuratedVerified: Boolean(curatedMatch),
+                stemDiscipline,
             };
+
+            if (!enriched.qaqc) {
+                enriched.qaqc = auditFacultyOpportunity(enriched, cvText);
+            }
+
+            return enriched;
         });
     };
 
@@ -1340,11 +1350,11 @@ ${cvText}`;
                 }
             }
 
-            const finalPositions = sanitizeAndEnrichPositions(candidatePositions.length > 0 ? candidatePositions : curatedFallback);
+            const finalPositions = sanitizeAndEnrichPositions(candidatePositions.length > 0 ? candidatePositions : curatedFallback, cvText);
             return res.json({ positions: finalPositions });
         } catch (error: any) {
             console.error("Error in /api/find-positions:", error);
-            const positions = sanitizeAndEnrichPositions(synthesizePositionsFallback(req.body?.cvText || "", req.body?.prompt || "", req.body?.targetCountry));
+            const positions = sanitizeAndEnrichPositions(synthesizePositionsFallback(req.body?.cvText || "", req.body?.prompt || "", req.body?.targetCountry), req.body?.cvText || "");
             return res.json({ positions });
         }
     });

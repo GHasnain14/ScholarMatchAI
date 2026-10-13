@@ -1,3 +1,46 @@
+export type StemDiscipline = 
+    | 'all'
+    | 'biological_biomedical'
+    | 'chemical_materials'
+    | 'physics_quantum'
+    | 'mechanical_aerospace'
+    | 'electrical_electronics'
+    | 'civil_environmental'
+    | 'computing_data_ai'
+    | 'mathematics_quantitative';
+
+export interface QaqcGateDetail {
+    passed: boolean;
+    label: string;
+    description: string;
+    evidence?: string;
+    verifiedUrl?: string;
+    scoreContribution?: number; // 0-25
+}
+
+export interface QaqcVerificationResult {
+    overallStatus: 'passed' | 'warning' | 'audit_pending';
+    overallScore: number; // 0-100
+    badgeLabel: string;
+    gates: {
+        activeLabGate: QaqcGateDetail;
+        openAlexCitationGate: QaqcGateDetail;
+        cvGroundingGate: QaqcGateDetail;
+        tierFundingGate: QaqcGateDetail;
+    };
+    auditTimestamp: string;
+    auditorAgent: string;
+}
+
+export interface AgenticDiscoveryStep {
+    stepNumber: number;
+    title: string;
+    agentName: string;
+    status: 'pending' | 'running' | 'completed' | 'verified';
+    details: string;
+    findingsCount?: number;
+}
+
 export interface Scholarship {
     id?: string;
     professorName: string;
@@ -13,6 +56,13 @@ export interface Scholarship {
     scholarUrl?: string;
     officialLabUrl?: string;
     isCuratedVerified?: boolean;
+    // STEM & Multi-Agent QA/QC additions
+    stemDiscipline?: StemDiscipline;
+    qaqc?: QaqcVerificationResult;
+    openAlexAuthorId?: string;
+    recentPublications?: { title: string; year: number; doi?: string; citations?: number }[];
+    cvEvidenceTerms?: string[];
+    labAffiliationDepartment?: string;
     // Extended fields
     tuitionFees?: string;
     ranking?: string;
