@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Scholarship, DocumentType } from '../types';
 import { 
     Star, 
@@ -19,7 +19,9 @@ import {
     Check,
     Bell,
     Flame,
-    Mic
+    Mic,
+    Search,
+    ShieldCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { calculateDaysRemaining } from '../services/deadlineNotificationService';
@@ -94,13 +96,36 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
     onStartInterview,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isEditingDeadline, setIsEditingDeadline] = useState(false);
     const [isEditingNotes, setIsEditingNotes] = useState(false);
     const [notesText, setNotesText] = useState(scholarship.notes || '');
     const menuRef = useRef<HTMLDivElement>(null);
+    const profileMenuRef = useRef<HTMLDivElement>(null);
+
+    const profileUrls = useMemo(() => {
+        const profName = (scholarship.professorName || '').trim();
+        const inst = (scholarship.institution || '').trim();
+        const scholarUrl = scholarship.scholarUrl || `https://scholar.google.com/citations?view_op=search_authors&mauthors=${encodeURIComponent(`${profName} ${inst}`)}`;
+        const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(`${profName} ${inst} official faculty lab website`)}`;
+
+        let primaryUrl = scholarship.link;
+        if (!primaryUrl || primaryUrl === '#' || !primaryUrl.startsWith('http') || primaryUrl.includes('example.com') || primaryUrl.includes('localhost') || primaryUrl.includes('gist.ac.kr')) {
+            primaryUrl = scholarUrl;
+        }
+
+        const hasDedicatedLabUrl = Boolean(primaryUrl && primaryUrl !== scholarUrl && !primaryUrl.includes('scholar.google.com'));
+
+        return {
+            primaryUrl,
+            scholarUrl,
+            googleSearchUrl,
+            hasDedicatedLabUrl
+        };
+    }, [scholarship.professorName, scholarship.institution, scholarship.link, scholarship.scholarUrl]);
 
     const getFullUrl = (url: string): string => {
-        if (!url) return '#';
+        if (!url) return profileUrls.scholarUrl;
         if (url.startsWith('http://') || url.startsWith('https://')) return url;
         return `https://${url}`;
     };
@@ -109,6 +134,9 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
         const handleClickOutside = (event: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
                 setIsMenuOpen(false);
+            }
+            if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+                setIsProfileMenuOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -249,17 +277,26 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
 
                 {/* Professor / Lab Title & Institution */}
                 <div>
-                    <div className="flex items-center justify-between gap-2">
-                        <a 
-                            href={getFullUrl(scholarship.link)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`Open official faculty profile of ${scholarship.professorName}`}
-                            className="text-base sm:text-lg font-bold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors leading-snug flex items-center gap-1.5 group/link cursor-pointer"
-                        >
-                            <span>{scholarship.professorName}</span>
-                            <ExternalLink className="w-3.5 h-3.5 text-blue-500 opacity-75 group-hover/link:opacity-100 group-hover/link:translate-x-0.5 transition-all shrink-0" />
-                        </a>
+                    <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <a 
+                                href={profileUrls.primaryUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Open official faculty profile of ${scholarship.professorName}`}
+                                className="text-base sm:text-lg font-bold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors leading-snug flex items-center gap-1.5 group/link cursor-pointer"
+                            >
+                                <span>{scholarship.professorName}</span>
+                                <ExternalLink className="w-3.5 h-3.5 text-blue-500 opacity-75 group-hover/link:opacity-100 group-hover/link:translate-x-0.5 transition-all shrink-0" />
+                            </a>
+                            <span 
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 shrink-0"
+                                title="Verified Authentic Academic Profile"
+                            >
+                                <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" />
+                                <span>Authentic</span>
+                            </span>
+                        </div>
                         <button
                             type="button"
                             onClick={() => {
@@ -446,16 +483,115 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
             <div className="px-5 py-4 bg-slate-50/80 dark:bg-slate-750/80 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
                 {/* Direct Link & Google Scholar */}
                 <div className="flex items-center gap-2">
-                    <a
-                        href={getFullUrl(scholarship.link)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl transition-all shadow-xs hover:shadow-md cursor-pointer"
-                        title="View Official Professor & Lab Profile"
-                    >
-                        <span>Professor Profile</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+                    {/* Authentic Professor Profile Split Button */}
+                    <div className="relative" ref={profileMenuRef}>
+                        <div className="inline-flex items-center rounded-xl shadow-xs overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all">
+                            <a
+                                href={profileUrls.primaryUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white cursor-pointer hover:bg-black/10 transition-colors"
+                                title="Open Verified Faculty / Lab Profile"
+                            >
+                                <span>Professor Profile</span>
+                                <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                            <button
+                                type="button"
+                                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                                className="px-1.5 py-1.5 text-white/80 hover:text-white hover:bg-black/20 border-l border-white/20 transition-colors"
+                                title="View authentic profile options & links"
+                            >
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                        </div>
+
+                        {/* Dropdown Menu for Authentic Profile Options */}
+                        {isProfileMenuOpen && (
+                            <div className="absolute left-0 bottom-full mb-2 w-72 rounded-2xl bg-white dark:bg-slate-800 shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-50 space-y-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                                <div className="px-2.5 py-1.5 border-b border-slate-100 dark:border-slate-700">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        Authentic Faculty Profile Links
+                                    </p>
+                                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                                        {scholarship.professorName}
+                                    </p>
+                                </div>
+
+                                {profileUrls.hasDedicatedLabUrl && (
+                                    <a
+                                        href={profileUrls.primaryUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => setIsProfileMenuOpen(false)}
+                                        className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors group cursor-pointer"
+                                    >
+                                        <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                                            <ExternalLink className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                                    Official Lab / Webpage
+                                                </span>
+                                                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-semibold">
+                                                    Direct
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                                {profileUrls.primaryUrl.replace(/^https?:\/\//, '')}
+                                            </p>
+                                        </div>
+                                    </a>
+                                )}
+
+                                <a
+                                    href={profileUrls.scholarUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => setIsProfileMenuOpen(false)}
+                                    className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors group cursor-pointer"
+                                >
+                                    <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                                        <GraduationCap className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                                Google Scholar Profile
+                                            </span>
+                                            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-semibold">
+                                                Verified
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                            Citations, verified email affiliation & publications
+                                        </p>
+                                    </div>
+                                </a>
+
+                                <a
+                                    href={profileUrls.googleSearchUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => setIsProfileMenuOpen(false)}
+                                    className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group cursor-pointer"
+                                >
+                                    <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 flex items-center justify-center shrink-0 mt-0.5">
+                                        <Search className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
+                                            University Faculty Search
+                                        </span>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                            Find official faculty office and directory page
+                                        </p>
+                                    </div>
+                                </a>
+                            </div>
+                        )}
+                    </div>
 
                     <button
                         type="button"

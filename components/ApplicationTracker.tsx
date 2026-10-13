@@ -627,17 +627,17 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                                     </div>
 
                                     <div className="flex items-center gap-2">
-                                        {item.link && (
-                                            <a
-                                                href={item.link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
-                                                title="Open Lab / Portal Link"
-                                            >
-                                                <ExternalLink className="w-3.5 h-3.5" />
-                                            </a>
-                                        )}
+                                        <a
+                                            href={item.link && item.link !== '#' && item.link.startsWith('http') && !item.link.includes('example.com')
+                                                ? item.link 
+                                                : `https://scholar.google.com/citations?view_op=search_authors&mauthors=${encodeURIComponent(`${item.professorName} ${item.institution}`)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-colors"
+                                            title="Open Authentic Faculty & Lab Profile"
+                                        >
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                        </a>
                                         <button
                                             type="button"
                                             onClick={() => onToggleBookmark(item.id!)}
