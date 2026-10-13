@@ -42,10 +42,11 @@ function getAi(): GoogleGenAI {
 }
 
 // Recommended model candidate pool in priority order (high throughput, quota resilient flash models)
+// gemini-3.8-flash is the primary model as recommended for standard generation; gemini-3.1-flash-lite provides ultra-fast fallback
 const CANDIDATE_MODELS = [
-    "gemini-flash-latest",
-    "gemini-3.1-flash-lite",
     "gemini-3.8-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest",
 ];
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -59,13 +60,14 @@ async function generateContentWithRetry(params: {
 }) {
     const ai = getAi();
     let lastError: any = null;
+    const PER_MODEL_TIMEOUT_MS = 25000; // 25s timeout prevents long stalls while giving ample time for structured responses
 
     for (const model of CANDIDATE_MODELS) {
+        let timerId: NodeJS.Timeout | null = null;
         try {
-            // Guard with a 50-second timeout per model to allow complex generation without premature aborts
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error(`Timeout after 50s calling model ${model}`)), 50000)
-            );
+            const timeoutPromise = new Promise((_, reject) => {
+                timerId = setTimeout(() => reject(new Error(`Timeout after ${PER_MODEL_TIMEOUT_MS / 1000}s calling model ${model}`)), PER_MODEL_TIMEOUT_MS);
+            });
 
             const callPromise = ai.models.generateContent({
                 model,
@@ -87,6 +89,10 @@ async function generateContentWithRetry(params: {
             }
             await sleep(150);
             continue;
+        } finally {
+            if (timerId) {
+                clearTimeout(timerId);
+            }
         }
     }
 
