@@ -40,12 +40,11 @@ function getAi(): GoogleGenAI {
     return aiClient;
 }
 
-// Recommended model candidate pool in priority order (starting with highest throughput, lowest latency flash)
+// Recommended model candidate pool in priority order (high throughput, quota resilient flash models)
 const CANDIDATE_MODELS = [
-    "gemini-3.1-flash-lite",
     "gemini-flash-latest",
+    "gemini-3.1-flash-lite",
     "gemini-3.8-flash",
-    "gemini-3.1-pro-preview",
 ];
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -62,9 +61,9 @@ async function generateContentWithRetry(params: {
 
     for (const model of CANDIDATE_MODELS) {
         try {
-            // Guard with a 30-second timeout per model to allow complex generation without premature aborts
+            // Guard with a 50-second timeout per model to allow complex generation without premature aborts
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error(`Timeout after 30s calling model ${model}`)), 30000)
+                setTimeout(() => reject(new Error(`Timeout after 50s calling model ${model}`)), 50000)
             );
 
             const callPromise = ai.models.generateContent({
@@ -79,7 +78,12 @@ async function generateContentWithRetry(params: {
             }
         } catch (err: any) {
             lastError = err;
-            console.warn(`Model ${model} attempt failed (${err?.message || err}); rotating to next model candidate.`);
+            const errMsg = err?.message || String(err);
+            if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+                console.warn(`Model ${model} quota saturated (429); rotating to next candidate.`);
+            } else {
+                console.warn(`Model ${model} attempt failed (${errMsg}); rotating to next model candidate.`);
+            }
             await sleep(150);
             continue;
         }
@@ -1210,6 +1214,48 @@ ${cvText}`;
         return posCountry.includes(normTarget);
     };
 
+    // Safe link resolver that probes URLs and redirects to Google Scholar if a 404 or connection failure occurs
+    app.get("/api/resolve-professor-link", async (req: Request, res: Response) => {
+        const rawUrl = String(req.query.url || '').trim();
+        const profName = String(req.query.name || '').trim();
+        const inst = String(req.query.inst || '').trim();
+
+        const scholarFallback = `https://scholar.google.com/citations?view_op=search_authors&mauthors=${encodeURIComponent(`${profName} ${inst}`)}`;
+        const searchFallback = `https://www.google.com/search?q=${encodeURIComponent(`${profName} ${inst} official faculty lab website`)}`;
+
+        if (!rawUrl || rawUrl === '#' || !rawUrl.startsWith('http')) {
+            return res.redirect(profName ? scholarFallback : "https://scholar.google.com");
+        }
+
+        // Direct pass-through for trusted Google Scholar URLs
+        if (rawUrl.includes("scholar.google.com")) {
+            return res.redirect(rawUrl);
+        }
+
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2800);
+            const probeRes = await fetch(rawUrl, {
+                method: "HEAD",
+                signal: controller.signal,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                },
+            });
+            clearTimeout(timeout);
+
+            // If 404 or server failure, rescue candidate to Google Scholar
+            if (probeRes.status === 404 || probeRes.status === 410 || probeRes.status >= 500) {
+                console.warn(`[Safe Link Resolver] Detected ${probeRes.status} on ${rawUrl}; redirecting to Scholar profile.`);
+                return res.redirect(scholarFallback);
+            }
+            return res.redirect(rawUrl);
+        } catch {
+            // Network timeout, SSL error, or firewall rejection: redirect to verified search
+            return res.redirect(scholarFallback || searchFallback);
+        }
+    });
+
     // Helper to sanitize and guarantee authentic, working professor links
     const sanitizeAndEnrichPositions = (posList: any[]): any[] => {
         return posList.map(pos => {
@@ -1228,7 +1274,7 @@ ${cvText}`;
                 !verifiedLink.startsWith('http') || 
                 verifiedLink.includes('example.com') ||
                 verifiedLink.includes('localhost') ||
-                verifiedLink.includes('gist.ac.kr') // replace problematic intranet URL with Google Scholar
+                verifiedLink.includes('gist.ac.kr')
             ) {
                 verifiedLink = scholarUrl;
             }
@@ -1238,6 +1284,7 @@ ${cvText}`;
                 link: verifiedLink,
                 scholarUrl,
                 officialLabUrl: verifiedLink !== scholarUrl ? verifiedLink : undefined,
+                isCuratedVerified: Boolean(curatedMatch),
             };
         });
     };

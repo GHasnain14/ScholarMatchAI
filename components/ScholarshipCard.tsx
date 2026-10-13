@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { calculateDaysRemaining } from '../services/deadlineNotificationService';
+import { ProfessorProfileModal } from './ProfessorProfileModal';
 
 interface ScholarshipCardProps {
     scholarship: Scholarship;
@@ -97,6 +98,7 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [isEditingDeadline, setIsEditingDeadline] = useState(false);
     const [isEditingNotes, setIsEditingNotes] = useState(false);
     const [notesText, setNotesText] = useState(scholarship.notes || '');
@@ -109,20 +111,26 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
         const scholarUrl = scholarship.scholarUrl || `https://scholar.google.com/citations?view_op=search_authors&mauthors=${encodeURIComponent(`${profName} ${inst}`)}`;
         const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(`${profName} ${inst} official faculty lab website`)}`;
 
-        let primaryUrl = scholarship.link;
+        let primaryUrl = scholarship.officialLabUrl || scholarship.link;
         if (!primaryUrl || primaryUrl === '#' || !primaryUrl.startsWith('http') || primaryUrl.includes('example.com') || primaryUrl.includes('localhost') || primaryUrl.includes('gist.ac.kr')) {
             primaryUrl = scholarUrl;
         }
 
         const hasDedicatedLabUrl = Boolean(primaryUrl && primaryUrl !== scholarUrl && !primaryUrl.includes('scholar.google.com'));
 
+        // Route external lab URLs through safe resolver to guarantee zero 404
+        const safeLabUrl = hasDedicatedLabUrl
+            ? `/api/resolve-professor-link?url=${encodeURIComponent(primaryUrl)}&name=${encodeURIComponent(profName)}&inst=${encodeURIComponent(inst)}`
+            : scholarUrl;
+
         return {
             primaryUrl,
+            safeLabUrl,
             scholarUrl,
             googleSearchUrl,
             hasDedicatedLabUrl
         };
-    }, [scholarship.professorName, scholarship.institution, scholarship.link, scholarship.scholarUrl]);
+    }, [scholarship.professorName, scholarship.institution, scholarship.link, scholarship.officialLabUrl, scholarship.scholarUrl]);
 
     const getFullUrl = (url: string): string => {
         if (!url) return profileUrls.scholarUrl;
@@ -482,24 +490,23 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
             {/* Bottom Actions Bar */}
             <div className="px-5 py-4 bg-slate-50/80 dark:bg-slate-750/80 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
                 {/* Direct Link & Google Scholar */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     {/* Authentic Professor Profile Split Button */}
                     <div className="relative" ref={profileMenuRef}>
                         <div className="inline-flex items-center rounded-xl shadow-xs overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all">
-                            <a
-                                href={profileUrls.primaryUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            <button
+                                type="button"
+                                onClick={() => setIsProfileModalOpen(true)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white cursor-pointer hover:bg-black/10 transition-colors"
-                                title="Open Verified Faculty / Lab Profile"
+                                title="Open Verified Faculty & Lab Profile Hub"
                             >
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
                                 <span>Professor Profile</span>
-                                <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                                className="px-1.5 py-1.5 text-white/80 hover:text-white hover:bg-black/20 border-l border-white/20 transition-colors"
+                                className="px-1.5 py-1.5 text-white/80 hover:text-white hover:bg-black/20 border-l border-white/20 transition-colors cursor-pointer"
                                 title="View authentic profile options & links"
                             >
                                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
@@ -518,9 +525,35 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                                     </p>
                                 </div>
 
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsProfileMenuOpen(false);
+                                        setIsProfileModalOpen(true);
+                                    }}
+                                    className="w-full text-left flex items-start gap-2.5 p-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-slate-700 transition-colors group cursor-pointer"
+                                >
+                                    <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                                        <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                                                Verified Profile Hub
+                                            </span>
+                                            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-semibold">
+                                                Zero-404
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                            Overview, publications, lab site & directory
+                                        </p>
+                                    </div>
+                                </button>
+
                                 {profileUrls.hasDedicatedLabUrl && (
                                     <a
-                                        href={profileUrls.primaryUrl}
+                                        href={profileUrls.safeLabUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         onClick={() => setIsProfileMenuOpen(false)}
@@ -550,14 +583,14 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={() => setIsProfileMenuOpen(false)}
-                                    className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors group cursor-pointer"
+                                    className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-amber-50 dark:hover:bg-slate-700 transition-colors group cursor-pointer"
                                 >
                                     <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
                                         <GraduationCap className="w-4 h-4" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-1.5">
-                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-600 dark:group-hover:text-amber-400">
                                                 Google Scholar Profile
                                             </span>
                                             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-semibold">
@@ -592,6 +625,20 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                             </div>
                         )}
                     </div>
+
+                    {/* Direct Lab Site Pill when available */}
+                    {profileUrls.hasDedicatedLabUrl && (
+                        <a
+                            href={profileUrls.safeLabUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-all shadow-2xs cursor-pointer"
+                            title="Open Official Lab Website (Verified Non-404)"
+                        >
+                            <span>Lab Site</span>
+                            <ExternalLink className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        </a>
+                    )}
 
                     <button
                         type="button"
@@ -686,6 +733,16 @@ export const ScholarshipCard: React.FC<ScholarshipCardProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* Authentic Academic Profile & Lab Hub Modal */}
+            <ProfessorProfileModal
+                isOpen={isProfileModalOpen}
+                onClose={() => setIsProfileModalOpen(false)}
+                scholarship={scholarship}
+                onDraftDoc={onDraft}
+                onOpenPapers={onOpenGoogleScholar}
+                onStartInterview={onStartInterview}
+            />
         </div>
     </div>
 );

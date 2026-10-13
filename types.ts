@@ -12,6 +12,7 @@ export interface Scholarship {
     keyKeywords?: string[];
     scholarUrl?: string;
     officialLabUrl?: string;
+    isCuratedVerified?: boolean;
     // Extended fields
     tuitionFees?: string;
     ranking?: string;
