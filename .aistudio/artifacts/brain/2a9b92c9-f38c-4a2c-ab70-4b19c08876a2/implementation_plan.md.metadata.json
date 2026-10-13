@@ -1,6 +1,6 @@
 {
-  "summary": "Architectural implementation plan for the Universal STEM Agentic Faculty & University Discovery Engine. Expands coverage across all fields of Science, Technology, and Engineering (Biomedical, Chemistry, Physics, Mechanical, Electrical, Civil, Aerospace, Materials, and Computing). Implements an autonomous multi-agent pipeline querying the OpenAlex scholarly graph and global academic directories, coupled with an empirical CV-readiness calibration engine and a 4-gate QA/QC verification protocol before presenting any verified faculty matches to the researcher.",
-  "updatedAt": "2026-10-13T10:04:22.701118057Z",
+  "summary": "Implementation plan for the new 'Research Paper Tracker' tab in Academic Application Intelligence.\nIncludes 1-click import from Google Scholar, manual entry dialog, status toggle ('Read' vs 'Pending'), author notes editor, priority levels (High/Medium/Low), custom tags, target university linkage, BibTeX/APA exports, and real-time persistence with both local storage and Firestore synchronization.",
+  "updatedAt": "2026-10-13T14:14:43.743729688Z",
   "requestFeedback": true,
   "userFacing": true
 }
