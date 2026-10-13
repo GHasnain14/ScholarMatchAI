@@ -120,8 +120,13 @@ Unlike generic chatbots or static scholarship aggregator boards, this platform b
 ---
 
 ### 8. 🎙️ Live Interactive Lab Interview Simulator
-- **Faculty PI Persona Simulation**: Practice simulated graduate admission interviews with an AI interviewer calibrated to the specific professor's research domain.
-- **Audio & Speech Recognition Mode**: Speak your answers aloud via microphone input or type responses directly.
+- **Faculty PI Persona Simulation**: Practice simulated graduate admission interviews with an AI interviewer calibrated to the specific professor's research domain and academic tone.
+- **Enhanced Microphone Audio Recording & Live Speech-to-Text**:
+  - Record spoken answers aloud directly via your browser microphone (`● LIVE REC`).
+  - **Dynamic Audio Waveform Visualizer**: 12-band real-time equalizer bars animating with your voice frequency and volume.
+  - **Live Interim Dictation Stream**: See your words captured in real time with continuous auto-restart resilience across speech pauses.
+  - **Direct Transcription into Answer Box**: Live speech is transcribed seamlessly into your response box for instant inspection, fine-tuning, or manual expansion.
+  - **Speaking Pace Counter**: Real-time word count and estimated spoken time indicators (~130 words/min ideal interview cadence).
 - **Three Question Focus Categories**:
   - **Technical Rationale**: Defending architectural choices, algorithmic trade-offs, and experimental baselines.
   - **Behavioral & Adversarial Scenarios**: Handling negative experimental results, debugging under pressure, and resolving collaborative disagreements.

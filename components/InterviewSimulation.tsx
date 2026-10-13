@@ -175,7 +175,14 @@ export const InterviewSimulation: React.FC<InterviewSimulationProps> = ({
     // Audio Dictation / Speech Recognition
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [speechSupported, setSpeechSupported] = useState<boolean>(false);
+    const [interimTranscript, setInterimTranscript] = useState<string>('');
+    const [audioVolume, setAudioVolume] = useState<number>(0);
+    const [micPermissionError, setMicPermissionError] = useState<string | null>(null);
+    const shouldKeepListeningRef = useRef<boolean>(false);
     const recognitionRef = useRef<any>(null);
+    const mediaStreamRef = useRef<MediaStream | null>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const animFrameRef = useRef<number | null>(null);
 
     // Available target applications list
     const candidateApplications = useMemo(() => {
@@ -303,7 +310,64 @@ export const InterviewSimulation: React.FC<InterviewSimulationProps> = ({
         window.speechSynthesis.speak(utterance);
     };
 
-    // Speech Recognition Helpers
+    // Audio Analyser for Real-Time Waveform Visualization
+    const stopAudioAnalyser = () => {
+        if (animFrameRef.current) {
+            cancelAnimationFrame(animFrameRef.current);
+            animFrameRef.current = null;
+        }
+        if (mediaStreamRef.current) {
+            try {
+                mediaStreamRef.current.getTracks().forEach(track => track.stop());
+            } catch {}
+            mediaStreamRef.current = null;
+        }
+        if (audioContextRef.current) {
+            try {
+                audioContextRef.current.close();
+            } catch {}
+            audioContextRef.current = null;
+        }
+        setAudioVolume(0);
+    };
+
+    const startAudioAnalyser = async () => {
+        if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaStreamRef.current = stream;
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioCtx) {
+                const ctx = new AudioCtx();
+                audioContextRef.current = ctx;
+                const source = ctx.createMediaStreamSource(stream);
+                const analyser = ctx.createAnalyser();
+                analyser.fftSize = 64;
+                source.connect(analyser);
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const updateVolume = () => {
+                    if (!shouldKeepListeningRef.current) return;
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        sum += dataArray[i];
+                    }
+                    const avg = sum / (dataArray.length || 1);
+                    setAudioVolume(Math.min(100, Math.round((avg / 128) * 100)));
+                    animFrameRef.current = requestAnimationFrame(updateVolume);
+                };
+                updateVolume();
+            }
+        } catch (err: any) {
+            console.warn('Microphone access notice:', err);
+            if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+                setMicPermissionError('Microphone permission was denied. Please allow microphone access in your browser to record your spoken answers.');
+            }
+        }
+    };
+
+    // Speech Recognition Helpers with Auto-Restart & Live Interim Transcription
     const toggleSpeechRecognition = () => {
         if (isRecording) {
             stopSpeechRecognition();
@@ -312,62 +376,117 @@ export const InterviewSimulation: React.FC<InterviewSimulationProps> = ({
         }
     };
 
-    const startSpeechRecognition = () => {
+    const startSpeechRecognition = async () => {
+        setMicPermissionError(null);
         const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRec) return;
+        if (!SpeechRec) {
+            setMicPermissionError('Web Speech API is not supported in this browser. Please use Google Chrome, Edge, or Safari for direct voice-to-text transcription.');
+            return;
+        }
+
+        shouldKeepListeningRef.current = true;
+        setIsRecording(true);
+        if (!isTimerRunning) {
+            setIsTimerRunning(true);
+        }
+
+        // Start real-time audio volume visualizer
+        startAudioAnalyser();
 
         try {
             const recognition = new SpeechRec();
             recognition.continuous = true;
             recognition.interimResults = true;
             recognition.lang = 'en-US';
+            recognition.maxAlternatives = 1;
 
             recognition.onstart = () => {
                 setIsRecording(true);
-                if (!isTimerRunning) {
-                    setIsTimerRunning(true);
-                }
+                setMicPermissionError(null);
             };
 
             recognition.onresult = (event: any) => {
                 let interim = '';
-                let final = '';
+                let finalChunk = '';
+
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        final += event.results[i][0].transcript + ' ';
+                    const result = event.results[i];
+                    if (result.isFinal) {
+                        finalChunk += result[0].transcript + ' ';
                     } else {
-                        interim += event.results[i][0].transcript;
+                        interim += result[0].transcript;
                     }
                 }
-                if (final) {
-                    setCurrentAnswerText(prev => (prev ? prev.trim() + ' ' + final.trim() : final.trim()));
+
+                if (finalChunk) {
+                    setCurrentAnswerText(prev => {
+                        const trimmed = prev.trim();
+                        const nextChunk = finalChunk.trim();
+                        return trimmed ? `${trimmed} ${nextChunk}` : nextChunk;
+                    });
                 }
+                setInterimTranscript(interim.trim());
             };
 
             recognition.onerror = (err: any) => {
-                console.warn('Speech recognition error:', err);
-                setIsRecording(false);
+                // 'no-speech' is non-fatal when candidate pauses to think during an interview
+                if (err?.error === 'no-speech') {
+                    return;
+                }
+                if (err?.error === 'not-allowed' || err?.error === 'service-not-allowed') {
+                    setMicPermissionError('Microphone access blocked. Please enable microphone permissions in your browser address bar.');
+                    shouldKeepListeningRef.current = false;
+                    stopSpeechRecognition();
+                    return;
+                }
+                console.warn('Speech recognition notice:', err);
             };
 
             recognition.onend = () => {
-                setIsRecording(false);
+                // If candidate has not stopped recording, auto-restart to withstand natural pauses
+                if (shouldKeepListeningRef.current) {
+                    try {
+                        recognition.start();
+                    } catch {
+                        // Already active or restarting
+                    }
+                } else {
+                    setIsRecording(false);
+                    stopAudioAnalyser();
+                }
             };
 
             recognition.start();
             recognitionRef.current = recognition;
-        } catch (e) {
+        } catch (e: any) {
             console.warn('Failed to start speech recognition:', e);
+            shouldKeepListeningRef.current = false;
             setIsRecording(false);
+            stopAudioAnalyser();
         }
     };
 
     const stopSpeechRecognition = () => {
+        shouldKeepListeningRef.current = false;
+
+        // Flush any remaining interim transcript into the textarea
+        if (interimTranscript) {
+            setCurrentAnswerText(prev => {
+                const trimmed = prev.trim();
+                const nextChunk = interimTranscript.trim();
+                return trimmed ? `${trimmed} ${nextChunk}` : nextChunk;
+            });
+            setInterimTranscript('');
+        }
+
         if (recognitionRef.current) {
             try {
                 recognitionRef.current.stop();
-            } catch (e) {}
+            } catch {}
             recognitionRef.current = null;
         }
+
+        stopAudioAnalyser();
         setIsRecording(false);
     };
 
@@ -1087,22 +1206,105 @@ export const InterviewSimulation: React.FC<InterviewSimulationProps> = ({
                                 </div>
 
                                 {/* Speech Dictation Toggle */}
-                                {speechSupported && (
-                                    <button
-                                        onClick={toggleSpeechRecognition}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
-                                            isRecording
-                                                ? 'bg-rose-600 text-white animate-pulse'
-                                                : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
-                                        }`}
-                                        title="Speak out loud to automatically transcribe your answer via Speech-to-Text"
-                                    >
-                                        {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                                        <span>{isRecording ? 'Listening (Speaking...)' : 'Voice Dictation'}</span>
-                                    </button>
-                                )}
+                                <button
+                                    onClick={toggleSpeechRecognition}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
+                                        isRecording
+                                            ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/25 ring-2 ring-rose-400/50'
+                                            : 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/40'
+                                    }`}
+                                    title={isRecording ? 'Click to stop recording audio and keep transcription' : 'Record your answer with your microphone (live speech-to-text)'}
+                                >
+                                    {isRecording ? (
+                                        <>
+                                            <span className="relative flex h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                                            </span>
+                                            <MicOff className="w-3.5 h-3.5" />
+                                            <span className="font-bold">Stop Recording</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Mic className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                                            <span>Record via Mic</span>
+                                        </>
+                                    )}
+                                </button>
                             </div>
                         </div>
+
+                        {/* Microphone Permission Warning / Feedback */}
+                        {micPermissionError && (
+                            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 flex items-start justify-between gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+                                <div className="flex items-start gap-2">
+                                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                    <span>{micPermissionError}</span>
+                                </div>
+                                <button
+                                    onClick={() => setMicPermissionError(null)}
+                                    className="text-amber-700 dark:text-amber-300 hover:underline font-bold text-[11px] shrink-0"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Active Voice Recording Audio Wave Visualizer Strip */}
+                        {isRecording && (
+                            <div className="p-3 rounded-xl bg-gradient-to-r from-rose-50 via-indigo-50/70 to-slate-50 dark:from-rose-950/40 dark:via-indigo-950/30 dark:to-slate-800/40 border border-rose-200/80 dark:border-rose-900/60 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                                <div className="flex items-center gap-2.5">
+                                    <span className="relative flex h-3 w-3">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600"></span>
+                                    </span>
+                                    <div>
+                                        <div className="text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                                            <span>Microphone Live</span>
+                                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200 font-bold">
+                                                REC {formatTime(timerSeconds)}
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                            Speak clearly. Speech is transcribed directly into the response box.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Dynamic Sound Wave Bars */}
+                                <div className="flex items-center gap-1 h-6 px-3 py-1 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-rose-100 dark:border-rose-950">
+                                    {[0.5, 0.9, 0.6, 1.0, 0.7, 0.4, 0.8, 1.2, 0.6, 0.9, 0.5, 0.8].map((mult, barIdx) => {
+                                        const h = Math.max(
+                                            4,
+                                            Math.min(22, Math.round(4 + ((audioVolume > 0 ? audioVolume : 30) / 100) * 18 * mult))
+                                        );
+                                        return (
+                                            <span
+                                                key={barIdx}
+                                                className="w-1 bg-gradient-to-t from-rose-500 to-indigo-500 rounded-full transition-all duration-75"
+                                                style={{ height: `${h}px` }}
+                                            />
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={stopSpeechRecognition}
+                                    className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs"
+                                >
+                                    Finish Speaking
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Real-time Interim Speech Stream Preview */}
+                        {interimTranscript && (
+                            <div className="p-2.5 rounded-xl bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center gap-2 text-xs text-indigo-900 dark:text-indigo-200 animate-fadeIn">
+                                <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0 animate-pulse" />
+                                <span className="font-semibold text-slate-500 dark:text-slate-400 shrink-0">Speaking:</span>
+                                <span className="italic font-medium truncate">"{interimTranscript}"</span>
+                            </div>
+                        )}
 
                         {/* Text Area */}
                         <div className="space-y-1.5">
@@ -1110,14 +1312,20 @@ export const InterviewSimulation: React.FC<InterviewSimulationProps> = ({
                                 value={currentAnswerText}
                                 onChange={e => setCurrentAnswerText(e.target.value)}
                                 rows={6}
-                                placeholder="Type or speak your answer here. Provide specific technical examples, your individual ownership, concrete metrics, and lessons learned..."
+                                placeholder="Type or speak your answer here. Click 'Record via Mic' above to dictate using your voice with real-time speech-to-text..."
                                 className="w-full p-4 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white leading-relaxed resize-y"
                             />
 
                             <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                                <span>
-                                    {currentAnswerText.trim() ? currentAnswerText.trim().split(/\s+/).filter(Boolean).length : 0} words (~1.5–2 mins = 140–220 words)
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                        {currentAnswerText.trim() ? currentAnswerText.trim().split(/\s+/).filter(Boolean).length : 0} words
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                        ~{Math.round((currentAnswerText.trim() ? currentAnswerText.trim().split(/\s+/).filter(Boolean).length : 0) / 130 * 60)}s estimated spoken length
+                                    </span>
+                                </div>
                                 <span className="text-[10px] text-slate-400">
                                     Tip: Use STAR method for behavioral and hypothesis-to-results for technical.
                                 </span>
@@ -1129,7 +1337,9 @@ export const InterviewSimulation: React.FC<InterviewSimulationProps> = ({
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => {
+                                        if (isRecording) stopSpeechRecognition();
                                         setCurrentAnswerText('');
+                                        setInterimTranscript('');
                                         setTimerSeconds(0);
                                         setIsTimerRunning(false);
                                     }}

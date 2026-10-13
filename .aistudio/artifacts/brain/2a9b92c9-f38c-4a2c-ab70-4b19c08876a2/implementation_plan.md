@@ -1,39 +1,36 @@
-# Implementation Plan: GitHub Repository Documentation & Capability Catalog
+# Implementation Plan: Enhanced Audio Mic Voice Recording & Speech-to-Text in Mock Interview
 
 ## User Intent & Requirements
-The user requested GitHub repository details explaining the application's capabilities, detailing every feature. Based on clarifying preferences:
-- **Formats to provide**: Both a concise GitHub repository description/tagline (for the "About" box) and a full, beautifully formatted `README.md`.
-- **Focus**: Exclusively on user features, student/applicant capabilities, and academic workflows (omitting developer setup/installation instructions).
+The user wants to record their interview answers through the audio microphone with enhanced live speech-to-text transcription directly into the answer text box.
+Based on the clarifying preferences:
+- Deliver an enhanced live voice recording experience with real-time speech-to-text dictation streamed directly into the answer box.
+- Provide responsive audio recording feedback (live audio wave animation, recording timer sync, mic permission handling, and graceful error recovery).
+- Transcribe speech directly into the answer textarea so the candidate can inspect, refine, or expand their response before submitting for AI scoring.
 
 ---
 
-## Deliverables & Content Structure
+## Proposed Changes
 
-### 1. GitHub Repository "About" Metadata
-- **Short Tagline / Bio** (within GitHub's 350-character limit)
-- **Topics / Tags** for GitHub repository discoverability (e.g. `scholarship-finder`, `academic-admissions`, `phd-application`, `statement-of-purpose`, `google-scholar`, `master-programs`, `interview-prep`)
-
-### 2. Comprehensive `README.md` Content
-A production-grade, highly structured Markdown document ready to paste into the repository root:
-- **Hero Header & Badges**: Clean presentation with capability badges.
-- **Executive Overview**: What the application is and the core problem it solves for Master's, PhD, and postdoc candidates.
-- **Exhaustive Capability & Feature Catalog (All 11 Modules)**:
-  1. **Intelligent CV Profiling & Multi-Version Manager**: PDF/DOCX ingestion, text extraction, version history, and side-by-side profile switching.
-  2. **6-Axis Academic Caliber Evaluation Engine**: Overall readiness score (0–100) and interactive radar assessment (Theoretical Rigor, Empirical Benchmarking, Methodological Innovation, Mathematical Modeling, Domain Contextualization, Project Execution).
-  3. **Global Academic Opportunity Matcher**: Curated & dynamic matching across 11+ regions (South Korea, USA, Germany, UK, France, Canada, Australia, Singapore, Belgium, Poland, Erasmus Mundus), tier classification (Top-Tier to High-Acceptance), funding breakdown, and requirements checklists.
-  4. **Authentic Professor Profile & Lab Hub (Zero-404 Guarantee)**: Verified laboratory websites, Google Scholar author profiles, campus directory registry search, and safe probe resolution ensuring students never encounter dead links.
-  5. **Interactive Google Scholar & Literature Intelligence**: Integrated OpenAlex & Google Scholar literature search, BibTeX/APA citation generation, and automated 1-click "SOP Hook" synthesis.
-  6. **Curriculum-Matched Master's Explorer**: English-taught international graduate catalog, tuition-free filters, ECTS credit breakdowns, living cost estimations, and APS requirements.
-  7. **Academic Document Drafting Suite**: One-click generation of cold outreach emails, follow-up reminders, Statements of Purpose (SOP), cover letters, and 1-page research proposals with fluency and tone sliders.
-  8. **Live AI Academic Interview Simulator**: Candidate-tailored mock interviews with voice/mic support, technical and behavioral questioning, and 4-metric scoring with model answers.
-  9. **Academic Watermark Cleaner & Quality Assurance**: Removal of AI clichés ("delve", "testament", "tapestry"), academic style polishing, and real-time Quality Audit reports.
-  10. **Application Kanban & Timeline Tracker**: Pipeline stage progression from "Discovered" to "Offer Received", deadline alerts, and milestones.
-  11. **Academic LinkedIn Profile Optimizer**: Headline and bio generator translating academic research into recruiter-friendly industry and fellowship language.
-- **User Workflow & Journey**: Step-by-step applicant flow from CV upload to admission offer.
+### `components/InterviewSimulation.tsx`
+1. **Audio Microphone & Speech Recognition Architecture**:
+   - Implement dual-engine support: Web Speech Recognition API (`SpeechRecognition` / `webkitSpeechRecognition`) with seamless speech recognition lifecycle management.
+   - Real-time transcript streaming: capture both interim and final results smoothly without duplicating words or resetting manually entered text.
+   - Auto-restart resilience on natural speech pauses during long interview responses (ensures continuous listening up to 3–5 minutes).
+2. **Audio Wave & Recording UI Experience**:
+   - Enhanced **Record Answer via Mic** button with distinct visual states:
+     - **Idle**: Clean microphone icon with "Start Voice Recording" label.
+     - **Listening / Active**: Pulsing rose/red indicator, animated sound wave frequency bars (live visualizer effect), and active recording timer.
+     - **Interim Speech Indicator**: Subtle "Listening to your voice..." status badge showing words as they are recognized.
+3. **Browser Permission & Compatibility Helper**:
+   - Explicit microphone permission helper if the browser blocks access or requires permission grant.
+   - Clear fallback banner if running in a browser environment without Web Speech API support, with guidance on enabling speech dictation.
+4. **Answer Box Synchronization**:
+   - Live word count counter synced in real-time as speech is recognized.
+   - Single-click "Stop & Review" action so the user can easily switch between speaking and typing.
 
 ---
 
-## Verification & Review Plan
-- Verify that every feature existing in the codebase (`App.tsx`, `components/`, `utils/`, `types.ts`) is accurately reflected without omitting any tool.
-- Ensure formatting is 100% compliant with standard GitHub markdown rendering (collapsible details, tables, clean bullet hierarchies).
-- Create or update the root `README.md` file in the project workspace so the repository contains the finished document immediately.
+## Verification Plan
+1. **Compilation & Linting**: Run `compile_applet` and `lint_applet` to verify zero TypeScript errors.
+2. **Browser Compatibility Check**: Verify `window.SpeechRecognition` and `window.webkitSpeechRecognition` fallback initialization.
+3. **Recording Lifecycle**: Test start, pause, resume, interim result handling, and stopping dictation with transcript retention.
