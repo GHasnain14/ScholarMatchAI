@@ -1756,6 +1756,10 @@ const App: React.FC = () => {
                             onDeletePaper={handleDeleteResearchPaper}
                             onOpenScholarModal={(q, author, inst) => handleOpenGoogleScholar(q || '', author || '', inst || '')}
                             applicationTargets={scholarships}
+                            cvKeywords={cvAnalysis?.suggestedKeywords || []}
+                            cvResearchFields={cvAnalysis?.topResearchFields || []}
+                            cvText={cvText}
+                            onNavigateToUploadCv={() => setActiveTab(Tab.CvInsights)}
                         />
                     )}
 

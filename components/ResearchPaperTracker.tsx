@@ -31,7 +31,10 @@ import {
     Flame,
     School,
     LayoutGrid,
-    PieChart as PieChartIcon
+    PieChart as PieChartIcon,
+    RefreshCw,
+    SlidersHorizontal,
+    Layers
 } from 'lucide-react';
 import {
     ResponsiveContainer,
@@ -53,6 +56,10 @@ interface ResearchPaperTrackerProps {
     onDeletePaper: (paperId: string) => void;
     onOpenScholarModal: (query?: string, author?: string, institution?: string) => void;
     applicationTargets?: Scholarship[];
+    cvKeywords?: string[];
+    cvResearchFields?: string[];
+    cvText?: string;
+    onNavigateToUploadCv?: () => void;
 }
 
 export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
@@ -60,7 +67,11 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
     onSavePaper,
     onDeletePaper,
     onOpenScholarModal,
-    applicationTargets = []
+    applicationTargets = [],
+    cvKeywords = [],
+    cvResearchFields = [],
+    cvText = '',
+    onNavigateToUploadCv
 }) => {
     // Search and filter state
     const [searchQuery, setSearchQuery] = useState('');
@@ -77,6 +88,174 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
     const [activeNotesText, setActiveNotesText] = useState<string>('');
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const [exportNotice, setExportNotice] = useState<string | null>(null);
+
+    // State for Suggested Papers (arXiv API & CV Keywords)
+    const [isSuggestedPanelOpen, setIsSuggestedPanelOpen] = useState<boolean>(true);
+    const [selectedArxivCategory, setSelectedArxivCategory] = useState<string>('all');
+    const [arxivSortBy, setArxivSortBy] = useState<'submittedDate' | 'relevance'>('submittedDate');
+    const [customKeywordInput, setCustomKeywordInput] = useState<string>('');
+    const [suggestedPapers, setSuggestedPapers] = useState<any[]>([]);
+    const [isLoadingSuggested, setIsLoadingSuggested] = useState<boolean>(false);
+    const [suggestedError, setSuggestedError] = useState<string | null>(null);
+    const [expandedAbstractIds, setExpandedAbstractIds] = useState<Set<string>>(new Set());
+    const [newlySavedIds, setNewlySavedIds] = useState<Set<string>>(new Set());
+    const [copiedPreprintId, setCopiedPreprintId] = useState<string | null>(null);
+
+    // Dynamic CV research keywords
+    const initialSuggestedKeywords = useMemo(() => {
+        const set = new Set<string>();
+        if (Array.isArray(cvKeywords) && cvKeywords.length > 0) {
+            cvKeywords.forEach(k => {
+                if (k && k.trim()) set.add(k.trim());
+            });
+        }
+        if (Array.isArray(cvResearchFields) && cvResearchFields.length > 0) {
+            cvResearchFields.forEach(f => {
+                if (f && f.trim()) set.add(f.trim());
+            });
+        }
+        if (set.size === 0 && cvText) {
+            const lower = cvText.toLowerCase();
+            if (lower.includes('deep learning')) set.add('Deep Learning');
+            if (lower.includes('machine learning')) set.add('Machine Learning');
+            if (lower.includes('computer vision')) set.add('Computer Vision');
+            if (lower.includes('natural language') || lower.includes('nlp')) set.add('Natural Language Processing');
+            if (lower.includes('robot')) set.add('Robotics');
+            if (lower.includes('genom') || lower.includes('bio')) set.add('Bioinformatics');
+            if (lower.includes('quantum')) set.add('Quantum Computing');
+            if (lower.includes('reinforcement learning')) set.add('Reinforcement Learning');
+            if (lower.includes('neural')) set.add('Neural Networks');
+        }
+        if (set.size === 0) {
+            ['Deep Learning', 'Computer Vision', 'Natural Language Processing', 'Machine Learning', 'Reinforcement Learning'].forEach(k => set.add(k));
+        }
+        return Array.from(set).slice(0, 10);
+    }, [cvKeywords, cvResearchFields, cvText]);
+
+    const [activeCvKeywords, setActiveCvKeywords] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (initialSuggestedKeywords.length > 0 && activeCvKeywords.length === 0) {
+            setActiveCvKeywords(initialSuggestedKeywords.slice(0, 3));
+        }
+    }, [initialSuggestedKeywords]);
+
+    const handleToggleKeyword = (kw: string) => {
+        setActiveCvKeywords(prev => {
+            if (prev.includes(kw)) {
+                if (prev.length <= 1) return prev;
+                return prev.filter(k => k !== kw);
+            } else {
+                return [...prev, kw];
+            }
+        });
+    };
+
+    const handleAddCustomKeyword = (e: React.FormEvent) => {
+        e.preventDefault();
+        const clean = customKeywordInput.trim();
+        if (clean && !activeCvKeywords.includes(clean)) {
+            setActiveCvKeywords(prev => [...prev, clean]);
+            setCustomKeywordInput('');
+        }
+    };
+
+    const loadArxivSuggestions = useCallback(async (kws: string[], cat: string, sort: string) => {
+        if (!kws || kws.length === 0) return;
+        setIsLoadingSuggested(true);
+        setSuggestedError(null);
+        try {
+            const params = new URLSearchParams();
+            params.set('keywords', JSON.stringify(kws));
+            if (cat && cat !== 'all') params.set('category', cat);
+            params.set('sortBy', sort);
+            params.set('max_results', '8');
+
+            const res = await fetch(`/api/arxiv?${params.toString()}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (data.papers && Array.isArray(data.papers)) {
+                setSuggestedPapers(data.papers);
+            } else {
+                setSuggestedPapers([]);
+            }
+        } catch (err: any) {
+            console.error('Error fetching arXiv preprints:', err);
+            setSuggestedError('Failed to load recent preprints from arXiv API. Please try refreshing or adjusting keywords.');
+        } finally {
+            setIsLoadingSuggested(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeCvKeywords.length > 0) {
+            const timeoutId = setTimeout(() => {
+                loadArxivSuggestions(activeCvKeywords, selectedArxivCategory, arxivSortBy);
+            }, 300);
+            return () => clearTimeout(timeoutId);
+        }
+    }, [activeCvKeywords, selectedArxivCategory, arxivSortBy, loadArxivSuggestions]);
+
+    const handleSaveSuggestedPaper = (preprint: any) => {
+        const idKey = preprint.arxivId || preprint.id || preprint.title;
+        const authorsList = Array.isArray(preprint.authors) ? preprint.authors : [preprint.authors || 'Unknown Author'];
+        const authorStr = authorsList.join(', ');
+        const year = preprint.year || new Date().getFullYear();
+
+        const newPaper: ResearchPaperItem = {
+            id: `paper-arxiv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            title: preprint.title,
+            authors: authorsList,
+            journalOrVenue: preprint.venue || 'arXiv preprint',
+            year: year,
+            abstract: preprint.summary || '',
+            scholarUrl: preprint.arxivUrl || `https://arxiv.org/abs/${preprint.arxivId || preprint.id}`,
+            pdfUrl: preprint.pdfUrl || '',
+            status: 'pending',
+            priority: 'medium',
+            tags: preprint.matchedKeywords && preprint.matchedKeywords.length > 0 
+                ? preprint.matchedKeywords 
+                : (activeCvKeywords.slice(0, 2)),
+            notes: `Auto-suggested preprint from arXiv matching CV research keywords: ${activeCvKeywords.join(', ')}.`,
+            apaCitation: `${authorStr} (${year}). ${preprint.title}. arXiv preprint ${preprint.arxivId || ''}.`,
+            bibtex: `@article{arxiv_${(preprint.arxivId || 'preprint').replace(/[^a-zA-Z0-9]/g, '_')},\n  title={${preprint.title}},\n  author={${authorsList.join(' and ')}},\n  journal={arXiv preprint ${preprint.arxivId || ''}},\n  year={${year}},\n  url={${preprint.arxivUrl || ''}}\n}`,
+            dateAdded: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+
+        onSavePaper(newPaper);
+        setNewlySavedIds(prev => new Set([...prev, idKey, preprint.title]));
+    };
+
+    const isPaperAlreadyTracked = useCallback((preprint: any) => {
+        const idKey = preprint.arxivId || preprint.id;
+        if (newlySavedIds.has(idKey) || newlySavedIds.has(preprint.title)) return true;
+        const pTitle = (preprint.title || '').trim().toLowerCase();
+        return papers.some(p => {
+            if (p.title.trim().toLowerCase() === pTitle) return true;
+            if (preprint.arxivUrl && p.scholarUrl === preprint.arxivUrl) return true;
+            if (preprint.pdfUrl && p.pdfUrl === preprint.pdfUrl) return true;
+            return false;
+        });
+    }, [papers, newlySavedIds]);
+
+    const toggleAbstract = (id: string) => {
+        setExpandedAbstractIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleCopyPreprintCitation = (preprint: any) => {
+        const authorsList = Array.isArray(preprint.authors) ? preprint.authors : [preprint.authors || 'Unknown Author'];
+        const year = preprint.year || new Date().getFullYear();
+        const citation = `${authorsList.join(', ')} (${year}). ${preprint.title}. arXiv preprint ${preprint.arxivId || ''}. ${preprint.arxivUrl || ''}`;
+        navigator.clipboard.writeText(citation);
+        setCopiedPreprintId(preprint.id);
+        setTimeout(() => setCopiedPreprintId(null), 2000);
+    };
 
     // Calculate reading stats
     const stats = useMemo(() => {
@@ -1498,6 +1677,382 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                                 >
                                     Clear all analytics filters
                                 </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Suggested Papers Panel: Powered by arXiv API & CV Keywords */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs space-y-4 transition-all">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 shrink-0">
+                            <Sparkles className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                                    Suggested Papers & Preprints
+                                </h3>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300">
+                                    arXiv API Live
+                                </span>
+                                {cvKeywords.length > 0 ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                                        <Check className="w-2.5 h-2.5" /> Matched to your CV
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                        Foundational Research Profiles
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                Live preprints retrieved from open scholarly repositories matching your research profile. Click any paper to review its abstract and save directly to your tracker.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Action Controls */}
+                    <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => loadArxivSuggestions(activeCvKeywords, selectedArxivCategory, arxivSortBy)}
+                            disabled={isLoadingSuggested || activeCvKeywords.length === 0}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer"
+                            title="Refresh suggested preprints from arXiv"
+                        >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSuggested ? 'animate-spin text-violet-600' : ''}`} />
+                            <span>{isLoadingSuggested ? 'Searching arXiv…' : 'Refresh Preprints'}</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsSuggestedPanelOpen(prev => !prev)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                        >
+                            {isSuggestedPanelOpen ? (
+                                <>
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                    <span>Collapse</span>
+                                </>
+                            ) : (
+                                <>
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                    <span>Expand ({suggestedPapers.length})</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Collapsed state teaser */}
+                {!isSuggestedPanelOpen && (
+                    <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">Active CV Keywords:</span>
+                            {activeCvKeywords.map(kw => (
+                                <span key={kw} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px]">
+                                    {kw}
+                                </span>
+                            ))}
+                            <span className="text-slate-400">({suggestedPapers.length} preprints ready to review)</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsSuggestedPanelOpen(true)}
+                            className="text-violet-600 dark:text-violet-400 hover:underline font-semibold text-xs cursor-pointer"
+                        >
+                            View Suggested Papers →
+                        </button>
+                    </div>
+                )}
+
+                {/* Expanded state */}
+                {isSuggestedPanelOpen && (
+                    <div className="space-y-4">
+                        {/* Keyword Filter Bar */}
+                        <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Tag className="w-3.5 h-3.5 text-violet-500" />
+                                        CV Research Keywords:
+                                    </span>
+                                    {cvKeywords.length === 0 && onNavigateToUploadCv && (
+                                        <button
+                                            type="button"
+                                            onClick={onNavigateToUploadCv}
+                                            className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                                        >
+                                            Upload your CV to customize →
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Subject & Sort Controls */}
+                                <div className="flex items-center flex-wrap gap-2 text-xs">
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-slate-400 text-[11px]">Category:</span>
+                                        <select
+                                            value={selectedArxivCategory}
+                                            onChange={(e) => setSelectedArxivCategory(e.target.value)}
+                                            className="px-2.5 py-1 text-xs font-medium rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-hidden cursor-pointer"
+                                        >
+                                            <option value="all">All Disciplines</option>
+                                            <option value="cs.AI">AI (cs.AI)</option>
+                                            <option value="cs.LG">Machine Learning (cs.LG)</option>
+                                            <option value="cs.CV">Computer Vision (cs.CV)</option>
+                                            <option value="cs.CL">NLP / Language (cs.CL)</option>
+                                            <option value="cs.RO">Robotics (cs.RO)</option>
+                                            <option value="q-bio.BM">Quant Biology (q-bio)</option>
+                                            <option value="stat.ML">Stats ML (stat.ML)</option>
+                                            <option value="physics">Physics (quant-ph)</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-slate-400 text-[11px]">Sort:</span>
+                                        <select
+                                            value={arxivSortBy}
+                                            onChange={(e: any) => setArxivSortBy(e.target.value)}
+                                            className="px-2.5 py-1 text-xs font-medium rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-hidden cursor-pointer"
+                                        >
+                                            <option value="submittedDate">Newest Preprints</option>
+                                            <option value="relevance">Highest Relevance</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Keywords Chips Bar */}
+                            <div className="flex items-center flex-wrap gap-1.5 pt-1">
+                                {initialSuggestedKeywords.map(kw => {
+                                    const isSelected = activeCvKeywords.includes(kw);
+                                    return (
+                                        <button
+                                            key={kw}
+                                            type="button"
+                                            onClick={() => handleToggleKeyword(kw)}
+                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                                                isSelected
+                                                    ? 'bg-violet-600 text-white shadow-xs font-semibold'
+                                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-755 border border-slate-200 dark:border-slate-700'
+                                            }`}
+                                        >
+                                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                                            <span>{kw}</span>
+                                        </button>
+                                    );
+                                })}
+
+                                {/* Custom Keyword Form */}
+                                <form onSubmit={handleAddCustomKeyword} className="inline-flex items-center gap-1">
+                                    <input
+                                        type="text"
+                                        value={customKeywordInput}
+                                        onChange={(e) => setCustomKeywordInput(e.target.value)}
+                                        placeholder="+ Add topic / keyword..."
+                                        className="px-2.5 py-1 text-xs rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-violet-500 focus:outline-hidden w-36 sm:w-44"
+                                    />
+                                    {customKeywordInput.trim() && (
+                                        <button
+                                            type="submit"
+                                            className="px-2 py-1 text-xs font-semibold rounded-lg bg-violet-600 text-white hover:bg-violet-700 cursor-pointer"
+                                        >
+                                            Add
+                                        </button>
+                                    )}
+                                </form>
+                            </div>
+                        </div>
+
+                        {/* Error Message if any */}
+                        {suggestedError && (
+                            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-800 dark:text-amber-200 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                    <span>{suggestedError}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => loadArxivSuggestions(activeCvKeywords, selectedArxivCategory, arxivSortBy)}
+                                    className="underline font-semibold hover:text-amber-900 cursor-pointer ml-2"
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Loading State */}
+                        {isLoadingSuggested && (
+                            <div className="py-10 text-center space-y-3">
+                                <div className="w-8 h-8 mx-auto border-3 border-violet-500/30 border-t-violet-600 rounded-full animate-spin" />
+                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                    Querying open arXiv API for recent preprints matching <span className="font-semibold text-slate-800 dark:text-slate-200">"{activeCvKeywords.join(', ')}"</span>…
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Empty State */}
+                        {!isLoadingSuggested && suggestedPapers.length === 0 && !suggestedError && (
+                            <div className="py-8 text-center text-slate-400 space-y-2">
+                                <FileText className="w-8 h-8 mx-auto opacity-40" />
+                                <p className="text-xs font-medium">No preprints found for current keywords.</p>
+                                <p className="text-[11px] text-slate-500">Try selecting different keywords or changing the category filter.</p>
+                            </div>
+                        )}
+
+                        {/* Papers Grid */}
+                        {!isLoadingSuggested && suggestedPapers.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {suggestedPapers.map((paper) => {
+                                    const isSaved = isPaperAlreadyTracked(paper);
+                                    const isAbstractExpanded = expandedAbstractIds.has(paper.id);
+                                    const authorsDisplay = paper.authors && paper.authors.length > 0
+                                        ? paper.authors.slice(0, 3).join(', ') + (paper.authors.length > 3 ? ` et al.` : '')
+                                        : 'Unknown Author';
+
+                                    const formattedDate = paper.published
+                                        ? new Date(paper.published).toLocaleDateString(undefined, {
+                                            year: 'numeric',
+                                            month: 'short',
+                                            day: 'numeric',
+                                        })
+                                        : `${paper.year || ''}`;
+
+                                    return (
+                                        <div
+                                            key={paper.id || paper.arxivId || paper.title}
+                                            className={`p-4 rounded-xl border transition-all flex flex-col justify-between space-y-3 ${
+                                                isSaved
+                                                    ? 'bg-slate-50/50 dark:bg-slate-800/30 border-emerald-200 dark:border-emerald-800/50'
+                                                    : 'bg-white dark:bg-slate-850 border-slate-200/90 dark:border-slate-800 hover:border-violet-300 dark:hover:border-violet-700/80 shadow-xs'
+                                            }`}
+                                        >
+                                            <div className="space-y-2">
+                                                {/* Category & Date Header */}
+                                                <div className="flex items-center justify-between text-[11px] text-slate-500 gap-2">
+                                                    <span className="inline-flex items-center gap-1 font-mono font-semibold px-2 py-0.5 rounded-md bg-violet-50 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 border border-violet-200/60 dark:border-violet-800/60">
+                                                        {paper.primaryCategory ? `arXiv:${paper.primaryCategory}` : 'Preprint'}
+                                                    </span>
+                                                    <span className="font-mono text-slate-400">
+                                                        {formattedDate}
+                                                    </span>
+                                                </div>
+
+                                                {/* Title */}
+                                                <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug line-clamp-2">
+                                                    <a
+                                                        href={paper.arxivUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="hover:text-violet-600 dark:hover:text-violet-400 transition-colors inline-flex items-baseline gap-1"
+                                                    >
+                                                        <span>{paper.title}</span>
+                                                        <ExternalLink className="w-3 h-3 text-slate-400 shrink-0 self-center" />
+                                                    </a>
+                                                </h4>
+
+                                                {/* Authors */}
+                                                <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                                                    <UserIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                    <span className="truncate">{authorsDisplay}</span>
+                                                </div>
+
+                                                {/* Matched Keywords Tags */}
+                                                {paper.matchedKeywords && paper.matchedKeywords.length > 0 && (
+                                                    <div className="flex items-center flex-wrap gap-1 pt-0.5">
+                                                        {paper.matchedKeywords.map((k: string) => (
+                                                            <span
+                                                                key={k}
+                                                                className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/50"
+                                                            >
+                                                                Keyword: {k}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Abstract Preview */}
+                                                {paper.summary && (
+                                                    <div className="pt-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleAbstract(paper.id)}
+                                                            className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                                                        >
+                                                            <span>{isAbstractExpanded ? 'Hide Abstract' : 'Read Abstract'}</span>
+                                                            {isAbstractExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                                        </button>
+
+                                                        {isAbstractExpanded && (
+                                                            <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 leading-relaxed max-h-48 overflow-y-auto">
+                                                                {paper.summary}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Action Toolbar */}
+                                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 flex-wrap">
+                                                {/* 1-Click Save / Track status */}
+                                                {isSaved ? (
+                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                                        <span>Saved to Tracker</span>
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSaveSuggestedPaper(paper)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white shadow-xs shadow-violet-500/20 transition-all cursor-pointer"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5" />
+                                                        <span>Save to Tracker</span>
+                                                    </button>
+                                                )}
+
+                                                <div className="flex items-center gap-1.5">
+                                                    {paper.pdfUrl && (
+                                                        <a
+                                                            href={paper.pdfUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 transition-colors"
+                                                            title="Download or view PDF preprint"
+                                                        >
+                                                            <Download className="w-3 h-3 text-slate-500" />
+                                                            <span>PDF</span>
+                                                        </a>
+                                                    )}
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopyPreprintCitation(paper)}
+                                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                                        title="Copy quick APA citation to clipboard"
+                                                    >
+                                                        {copiedPreprintId === paper.id ? (
+                                                            <>
+                                                                <Check className="w-3 h-3 text-emerald-600" />
+                                                                <span className="text-[10px] text-emerald-600">Copied</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Copy className="w-3 h-3" />
+                                                                <span className="text-[10px]">Cite</span>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
