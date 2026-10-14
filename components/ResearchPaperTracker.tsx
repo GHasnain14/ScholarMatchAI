@@ -29,8 +29,22 @@ import {
     RotateCcw,
     BarChart3,
     Flame,
-    School
+    School,
+    LayoutGrid,
+    PieChart as PieChartIcon
 } from 'lucide-react';
+import {
+    ResponsiveContainer,
+    PieChart as RechartsPieChart,
+    Pie,
+    Cell,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    Tooltip as RechartsTooltip,
+    CartesianGrid
+} from 'recharts';
 import { ResearchPaperItem, ReadingStatus, PaperPriority, ScholarPaper, Scholarship } from '../types';
 
 interface ResearchPaperTrackerProps {
@@ -142,6 +156,134 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
             items,
         };
     }, [papers]);
+
+    // Chart View Selection Tab ('all' grid, 'status', 'priority', 'university')
+    const [selectedChartTab, setSelectedChartTab] = useState<'all' | 'status' | 'priority' | 'university'>('all');
+
+    // Chart Data for Reading Status Donut Chart
+    const statusChartData = useMemo(() => {
+        return [
+            {
+                name: 'Read',
+                label: 'Read & Completed',
+                value: statusDistribution.read,
+                percentage: statusDistribution.readPct,
+                color: '#10b981', // emerald-500
+                status: 'read' as ReadingStatus,
+            },
+            {
+                name: 'Pending',
+                label: 'Pending Review',
+                value: statusDistribution.pending,
+                percentage: statusDistribution.pendingPct,
+                color: '#f59e0b', // amber-500
+                status: 'pending' as ReadingStatus,
+            },
+        ];
+    }, [statusDistribution]);
+
+    // Chart Data for Priority Level Bar Chart
+    const priorityChartData = useMemo(() => {
+        return [
+            {
+                name: 'High',
+                label: 'High Priority',
+                count: priorityDistribution.high,
+                percentage: priorityDistribution.highPct,
+                color: '#f43f5e', // rose-500
+                priority: 'high' as PaperPriority,
+            },
+            {
+                name: 'Medium',
+                label: 'Medium Priority',
+                count: priorityDistribution.medium,
+                percentage: priorityDistribution.mediumPct,
+                color: '#f59e0b', // amber-500
+                priority: 'medium' as PaperPriority,
+            },
+            {
+                name: 'Low',
+                label: 'Low Priority',
+                count: priorityDistribution.low,
+                percentage: priorityDistribution.lowPct,
+                color: '#0ea5e9', // sky-500
+                priority: 'low' as PaperPriority,
+            },
+        ];
+    }, [priorityDistribution]);
+
+    // Chart Data for Target University Distribution (Horizontal Bar Chart)
+    const universityChartData = useMemo(() => {
+        const top = universityDistribution.items.slice(0, 6);
+        return top.map(item => ({
+            name: item.name.length > 14 ? item.name.substring(0, 13) + '…' : item.name,
+            fullName: item.name,
+            count: item.count,
+            percentage: item.pct,
+            isUnassigned: item.isUnassigned,
+            color: item.isUnassigned ? '#94a3b8' : '#6366f1',
+        }));
+    }, [universityDistribution]);
+
+    // Custom Tooltip for Reading Status Donut Chart
+    const renderStatusTooltip = ({ active, payload }: any) => {
+        if (active && payload && payload.length) {
+            const data = payload[0].payload;
+            return (
+                <div className="bg-slate-900/95 text-white p-2.5 rounded-xl shadow-xl border border-slate-700/80 backdrop-blur-md text-xs space-y-1 z-50">
+                    <div className="flex items-center gap-1.5 font-bold">
+                        <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: data.color }} />
+                        <span>{data.label}</span>
+                    </div>
+                    <div className="text-slate-300 font-mono">
+                        <span className="font-bold text-white text-sm">{data.value}</span> papers ({data.percentage}%)
+                    </div>
+                    <div className="text-[10px] text-slate-400">Click slice to filter papers</div>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    // Custom Tooltip for Priority Level Bar Chart
+    const renderPriorityTooltip = ({ active, payload }: any) => {
+        if (active && payload && payload.length) {
+            const data = payload[0].payload;
+            return (
+                <div className="bg-slate-900/95 text-white p-2.5 rounded-xl shadow-xl border border-slate-700/80 backdrop-blur-md text-xs space-y-1 z-50">
+                    <div className="flex items-center gap-1.5 font-bold">
+                        <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: data.color }} />
+                        <span>{data.label}</span>
+                    </div>
+                    <div className="text-slate-300 font-mono">
+                        <span className="font-bold text-white text-sm">{data.count}</span> papers ({data.percentage}%)
+                    </div>
+                    <div className="text-[10px] text-slate-400">Click bar to filter priority</div>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    // Custom Tooltip for Target University Bar Chart
+    const renderUniversityTooltip = ({ active, payload }: any) => {
+        if (active && payload && payload.length) {
+            const data = payload[0].payload;
+            return (
+                <div className="bg-slate-900/95 text-white p-2.5 rounded-xl shadow-xl border border-slate-700/80 backdrop-blur-md text-xs space-y-1 z-50">
+                    <div className="flex items-center gap-1.5 font-bold">
+                        <School className="w-3.5 h-3.5 text-indigo-400" />
+                        <span className="truncate max-w-[200px]">{data.fullName}</span>
+                    </div>
+                    <div className="text-slate-300 font-mono">
+                        <span className="font-bold text-white text-sm">{data.count}</span> papers ({data.percentage}%)
+                    </div>
+                    <div className="text-[10px] text-slate-400">Click bar to filter by university</div>
+                </div>
+            );
+        }
+        return null;
+    };
 
     // Unique tags and universities
     const allTags = useMemo(() => {
@@ -517,10 +659,10 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                 </div>
             )}
 
-            {/* Analytics Summary Card: Distribution by Status, Priority Level, & Target University */}
+            {/* Summary Analytics Dashboard: Visualizing Distribution by Status, Priority Level, & Target University using Charts */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs transition-all">
-                {/* Header of Analytics Summary Card */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+                {/* Header of Analytics Dashboard */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0">
                             <BarChart3 className="w-5 h-5" />
@@ -528,20 +670,80 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                         <div>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-                                    Analytics & Literature Distribution
+                                    Summary Analytics Dashboard
                                 </h3>
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
-                                    Distribution Intelligence
+                                    Visual Charts
                                 </span>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Real-time breakdown of literature by reading status, strategic priority, and target university applications. Click any segment to filter.
+                                Interactive visual charts analyzing paper distribution across reading status, priority tier, and target universities. Click any chart element to filter.
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-                        {/* Clear Analytics Filters button if any are active */}
+                    {/* Chart Tabs & Action Controls */}
+                    <div className="flex items-center flex-wrap gap-2 self-start lg:self-auto">
+                        {/* Chart View Switcher */}
+                        <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedChartTab('all')}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                                    selectedChartTab === 'all'
+                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                                title="View all distribution charts"
+                            >
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">All Charts</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSelectedChartTab('status')}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                                    selectedChartTab === 'status'
+                                        ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                                title="View Status Donut Chart"
+                            >
+                                <PieChartIcon className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Status</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSelectedChartTab('priority')}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                                    selectedChartTab === 'priority'
+                                        ? 'bg-white dark:bg-slate-700 text-rose-700 dark:text-rose-300 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                                title="View Priority Bar Chart"
+                            >
+                                <BarChart3 className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Priority</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSelectedChartTab('university')}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                                    selectedChartTab === 'university'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                                title="View Target University Chart"
+                            >
+                                <School className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">University</span>
+                            </button>
+                        </div>
+
+                        {/* Reset Filters button if active */}
                         {(statusFilter !== 'all' || priorityFilter !== 'all' || selectedUniversity !== 'all') && (
                             <button
                                 type="button"
@@ -558,6 +760,7 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                             </button>
                         )}
 
+                        {/* Collapse / Expand Toggle */}
                         <button
                             type="button"
                             onClick={() => setIsAnalyticsExpanded(prev => !prev)}
@@ -578,7 +781,7 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                     </div>
                 </div>
 
-                {/* Collapsed State Summary Bar */}
+                {/* Collapsed State Bar */}
                 {!isAnalyticsExpanded && (
                     <div className="pt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
                         <div className="flex items-center flex-wrap gap-2 text-slate-600 dark:text-slate-400">
@@ -592,7 +795,7 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 font-mono">
                                 <Flame className="w-3 h-3" /> {priorityDistribution.high} High Priority
                             </span>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-mono">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-mono">
                                 <School className="w-3 h-3" /> {universityDistribution.uniqueCount} Universities
                             </span>
                         </div>
@@ -601,264 +804,641 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                             onClick={() => setIsAnalyticsExpanded(true)}
                             className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-xs cursor-pointer"
                         >
-                            View Visual Distributions →
+                            Open Visual Charts Dashboard →
                         </button>
                     </div>
                 )}
 
-                {/* Expanded State: 3 Detailed Distribution Columns */}
+                {/* Expanded State: Chart Visualizations */}
                 {isAnalyticsExpanded && (
                     <div className="pt-5 space-y-5">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                            {/* SECTION 1: Status Distribution */}
-                            <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3.5">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-1.5 rounded-lg bg-emerald-100/70 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
-                                            <CheckCircle2 className="w-4 h-4" />
+                        {/* 1. GRID VIEW (All 3 Charts Side-by-Side) */}
+                        {selectedChartTab === 'all' && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                {/* CHART 1: Reading Status Distribution (Donut Chart) */}
+                                <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-1.5 rounded-lg bg-emerald-100/70 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                                                <PieChartIcon className="w-4 h-4" />
+                                            </div>
+                                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                                Status Distribution
+                                            </h4>
                                         </div>
-                                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                                            By Reading Status
-                                        </h4>
+                                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                                            {statusDistribution.readPct}% Read
+                                        </span>
                                     </div>
-                                    <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
-                                        {statusDistribution.readPct}% Read
-                                    </span>
-                                </div>
 
-                                {/* Segmented Progress Bar for Status */}
-                                <div className="space-y-1">
-                                    <div className="w-full h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex">
+                                    {/* Recharts Donut Chart */}
+                                    <div className="relative w-full h-[180px] flex items-center justify-center">
                                         {statusDistribution.total > 0 ? (
                                             <>
-                                                <div
-                                                    className="h-full bg-emerald-500 transition-all duration-500"
-                                                    style={{ width: `${statusDistribution.readPct}%` }}
-                                                    title={`Read: ${statusDistribution.read} (${statusDistribution.readPct}%)`}
-                                                />
-                                                <div
-                                                    className="h-full bg-amber-500 transition-all duration-500"
-                                                    style={{ width: `${statusDistribution.pendingPct}%` }}
-                                                    title={`Pending: ${statusDistribution.pending} (${statusDistribution.pendingPct}%)`}
-                                                />
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <RechartsPieChart>
+                                                        <Pie
+                                                            data={statusChartData}
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            innerRadius={48}
+                                                            outerRadius={72}
+                                                            paddingAngle={4}
+                                                            dataKey="value"
+                                                            onClick={(entry: any) => {
+                                                                if (entry && entry.status) {
+                                                                    setStatusFilter(statusFilter === entry.status ? 'all' : entry.status);
+                                                                }
+                                                            }}
+                                                            cursor="pointer"
+                                                        >
+                                                            {statusChartData.map((entry, index) => (
+                                                                <Cell
+                                                                    key={`status-cell-${index}`}
+                                                                    fill={entry.color}
+                                                                    stroke="#ffffff"
+                                                                    strokeWidth={statusFilter === entry.status ? 3 : 1}
+                                                                    opacity={statusFilter !== 'all' && statusFilter !== entry.status ? 0.35 : 1}
+                                                                />
+                                                            ))}
+                                                        </Pie>
+                                                        <RechartsTooltip content={renderStatusTooltip} />
+                                                    </RechartsPieChart>
+                                                </ResponsiveContainer>
+                                                {/* Donut Center Overlay Metric */}
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                    <span className="text-xl font-black font-mono text-slate-900 dark:text-white">
+                                                        {statusDistribution.readPct}%
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                        Completed
+                                                    </span>
+                                                </div>
                                             </>
                                         ) : (
-                                            <div className="h-full w-full bg-slate-200 dark:bg-slate-700" />
+                                            <div className="flex flex-col items-center justify-center text-slate-400 text-xs">
+                                                <PieChartIcon className="w-8 h-8 opacity-40 mb-1" />
+                                                <span>No papers tracked</span>
+                                            </div>
                                         )}
                                     </div>
-                                    <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                                        <span>Read ({statusDistribution.readPct}%)</span>
-                                        <span>Pending ({statusDistribution.pendingPct}%)</span>
+
+                                    {/* Interactive Status Legend Cards */}
+                                    <div className="grid grid-cols-2 gap-2 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setStatusFilter(statusFilter === 'read' ? 'all' : 'read')}
+                                            className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                                                statusFilter === 'read'
+                                                    ? 'bg-emerald-100/70 dark:bg-emerald-900/40 border-emerald-500 ring-2 ring-emerald-500/20'
+                                                    : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 mb-0.5">
+                                                <span className="text-[10px] font-bold uppercase">Read</span>
+                                                <CheckCircle2 className="w-3 h-3" />
+                                            </div>
+                                            <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
+                                                {statusDistribution.read}
+                                                <span className="text-[10px] font-normal text-slate-400 ml-1">({statusDistribution.readPct}%)</span>
+                                            </div>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
+                                            className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                                                statusFilter === 'pending'
+                                                    ? 'bg-amber-100/70 dark:bg-amber-900/40 border-amber-500 ring-2 ring-amber-500/20'
+                                                    : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 mb-0.5">
+                                                <span className="text-[10px] font-bold uppercase">Pending</span>
+                                                <Clock className="w-3 h-3" />
+                                            </div>
+                                            <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
+                                                {statusDistribution.pending}
+                                                <span className="text-[10px] font-normal text-slate-400 ml-1">({statusDistribution.pendingPct}%)</span>
+                                            </div>
+                                        </button>
                                     </div>
                                 </div>
 
-                                {/* Clickable Status Cards */}
-                                <div className="grid grid-cols-2 gap-2.5 pt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setStatusFilter(statusFilter === 'read' ? 'all' : 'read')}
-                                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                                            statusFilter === 'read'
-                                                ? 'bg-emerald-100/60 dark:bg-emerald-900/40 border-emerald-500 ring-2 ring-emerald-500/20'
-                                                : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 mb-1">
-                                            <span className="text-[11px] font-semibold">Completed</span>
-                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                {/* CHART 2: Priority Level Distribution (Bar Chart) */}
+                                <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-1.5 rounded-lg bg-rose-100/70 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300">
+                                                <BarChart3 className="w-4 h-4" />
+                                            </div>
+                                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                                Priority Distribution
+                                            </h4>
                                         </div>
-                                        <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
-                                            {statusDistribution.read}
-                                        </div>
-                                        <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between mt-0.5">
-                                            <span>Fully read</span>
-                                            <span className="font-mono font-medium">{statusDistribution.readPct}%</span>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
-                                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                                            statusFilter === 'pending'
-                                                ? 'bg-amber-100/60 dark:bg-amber-900/40 border-amber-500 ring-2 ring-amber-500/20'
-                                                : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 mb-1">
-                                            <span className="text-[11px] font-semibold">Pending</span>
-                                            <Clock className="w-3.5 h-3.5" />
-                                        </div>
-                                        <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
-                                            {statusDistribution.pending}
-                                        </div>
-                                        <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between mt-0.5">
-                                            <span>To review</span>
-                                            <span className="font-mono font-medium">{statusDistribution.pendingPct}%</span>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* SECTION 2: Priority Level Distribution */}
-                            <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3.5">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-1.5 rounded-lg bg-rose-100/70 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300">
-                                            <Flame className="w-4 h-4" />
-                                        </div>
-                                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                                            By Priority Level
-                                        </h4>
+                                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200">
+                                            {priorityDistribution.high} High Impact
+                                        </span>
                                     </div>
-                                    <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200">
-                                        {priorityDistribution.high} High Impact
-                                    </span>
-                                </div>
 
-                                {/* Tri-color Segmented Progress Bar for Priority */}
-                                <div className="space-y-1">
-                                    <div className="w-full h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex">
+                                    {/* Recharts Bar Chart */}
+                                    <div className="w-full h-[180px] flex items-center justify-center">
                                         {priorityDistribution.total > 0 ? (
-                                            <>
-                                                <div
-                                                    className="h-full bg-rose-500 transition-all duration-500"
-                                                    style={{ width: `${priorityDistribution.highPct}%` }}
-                                                    title={`High: ${priorityDistribution.high} (${priorityDistribution.highPct}%)`}
-                                                />
-                                                <div
-                                                    className="h-full bg-amber-500 transition-all duration-500"
-                                                    style={{ width: `${priorityDistribution.mediumPct}%` }}
-                                                    title={`Medium: ${priorityDistribution.medium} (${priorityDistribution.mediumPct}%)`}
-                                                />
-                                                <div
-                                                    className="h-full bg-sky-500 transition-all duration-500"
-                                                    style={{ width: `${priorityDistribution.lowPct}%` }}
-                                                    title={`Low: ${priorityDistribution.low} (${priorityDistribution.lowPct}%)`}
-                                                />
-                                            </>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart
+                                                    data={priorityChartData}
+                                                    margin={{ top: 12, right: 10, left: -22, bottom: 0 }}
+                                                >
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" opacity={0.3} />
+                                                    <XAxis
+                                                        dataKey="name"
+                                                        tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                    />
+                                                    <YAxis
+                                                        allowDecimals={false}
+                                                        tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                    />
+                                                    <RechartsTooltip content={renderPriorityTooltip} />
+                                                    <Bar
+                                                        dataKey="count"
+                                                        radius={[6, 6, 0, 0]}
+                                                        onClick={(entry: any) => {
+                                                            if (entry && entry.priority) {
+                                                                setPriorityFilter(priorityFilter === entry.priority ? 'all' : entry.priority);
+                                                            }
+                                                        }}
+                                                        cursor="pointer"
+                                                    >
+                                                        {priorityChartData.map((entry, index) => (
+                                                            <Cell
+                                                                key={`priority-cell-${index}`}
+                                                                fill={entry.color}
+                                                                opacity={priorityFilter !== 'all' && priorityFilter !== entry.priority ? 0.35 : 1}
+                                                            />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
                                         ) : (
-                                            <div className="h-full w-full bg-slate-200 dark:bg-slate-700" />
+                                            <div className="flex flex-col items-center justify-center text-slate-400 text-xs">
+                                                <BarChart3 className="w-8 h-8 opacity-40 mb-1" />
+                                                <span>No priority data</span>
+                                            </div>
                                         )}
                                     </div>
-                                    <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                                        <span className="text-rose-600 dark:text-rose-400">High ({priorityDistribution.highPct}%)</span>
-                                        <span className="text-amber-600 dark:text-amber-400">Med ({priorityDistribution.mediumPct}%)</span>
-                                        <span className="text-sky-600 dark:text-sky-400">Low ({priorityDistribution.lowPct}%)</span>
+
+                                    {/* Interactive Priority Legend Buttons */}
+                                    <div className="grid grid-cols-3 gap-1.5 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPriorityFilter(priorityFilter === 'high' ? 'all' : 'high')}
+                                            className={`p-1.5 rounded-xl border text-center transition-all cursor-pointer ${
+                                                priorityFilter === 'high'
+                                                    ? 'bg-rose-100/70 dark:bg-rose-900/40 border-rose-500 ring-2 ring-rose-500/20'
+                                                    : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-700'
+                                            }`}
+                                        >
+                                            <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase">High</div>
+                                            <div className="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                                                {priorityDistribution.high}
+                                            </div>
+                                            <div className="text-[9px] text-slate-400 font-mono">{priorityDistribution.highPct}%</div>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setPriorityFilter(priorityFilter === 'medium' ? 'all' : 'medium')}
+                                            className={`p-1.5 rounded-xl border text-center transition-all cursor-pointer ${
+                                                priorityFilter === 'medium'
+                                                    ? 'bg-amber-100/70 dark:bg-amber-900/40 border-amber-500 ring-2 ring-amber-500/20'
+                                                    : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700'
+                                            }`}
+                                        >
+                                            <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">Med</div>
+                                            <div className="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                                                {priorityDistribution.medium}
+                                            </div>
+                                            <div className="text-[9px] text-slate-400 font-mono">{priorityDistribution.mediumPct}%</div>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setPriorityFilter(priorityFilter === 'low' ? 'all' : 'low')}
+                                            className={`p-1.5 rounded-xl border text-center transition-all cursor-pointer ${
+                                                priorityFilter === 'low'
+                                                    ? 'bg-sky-100/70 dark:bg-sky-900/40 border-sky-500 ring-2 ring-sky-500/20'
+                                                    : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-700'
+                                            }`}
+                                        >
+                                            <div className="text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase">Low</div>
+                                            <div className="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                                                {priorityDistribution.low}
+                                            </div>
+                                            <div className="text-[9px] text-slate-400 font-mono">{priorityDistribution.lowPct}%</div>
+                                        </button>
                                     </div>
                                 </div>
 
-                                {/* Clickable Priority Cards */}
-                                <div className="grid grid-cols-3 gap-2 pt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setPriorityFilter(priorityFilter === 'high' ? 'all' : 'high')}
-                                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                                            priorityFilter === 'high'
-                                                ? 'bg-rose-100/70 dark:bg-rose-900/40 border-rose-500 ring-2 ring-rose-500/20'
-                                                : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-700'
-                                        }`}
-                                    >
-                                        <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">High</div>
-                                        <div className="text-lg font-bold font-mono text-slate-900 dark:text-white my-0.5">
-                                            {priorityDistribution.high}
+                                {/* CHART 3: Target University Distribution (Horizontal Bar Chart) */}
+                                <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-1.5 rounded-lg bg-indigo-100/70 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
+                                                <School className="w-4 h-4" />
+                                            </div>
+                                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                                University Distribution
+                                            </h4>
                                         </div>
-                                        <div className="text-[10px] text-slate-400 font-mono">{priorityDistribution.highPct}%</div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setPriorityFilter(priorityFilter === 'medium' ? 'all' : 'medium')}
-                                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                                            priorityFilter === 'medium'
-                                                ? 'bg-amber-100/70 dark:bg-amber-900/40 border-amber-500 ring-2 ring-amber-500/20'
-                                                : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700'
-                                        }`}
-                                    >
-                                        <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight">Medium</div>
-                                        <div className="text-lg font-bold font-mono text-slate-900 dark:text-white my-0.5">
-                                            {priorityDistribution.medium}
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 font-mono">{priorityDistribution.mediumPct}%</div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setPriorityFilter(priorityFilter === 'low' ? 'all' : 'low')}
-                                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                                            priorityFilter === 'low'
-                                                ? 'bg-sky-100/70 dark:bg-sky-900/40 border-sky-500 ring-2 ring-sky-500/20'
-                                                : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-700'
-                                        }`}
-                                    >
-                                        <div className="text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase tracking-tight">Low</div>
-                                        <div className="text-lg font-bold font-mono text-slate-900 dark:text-white my-0.5">
-                                            {priorityDistribution.low}
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 font-mono">{priorityDistribution.lowPct}%</div>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* SECTION 3: Target University Distribution */}
-                            <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3.5">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-1.5 rounded-lg bg-indigo-100/70 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
-                                            <School className="w-4 h-4" />
-                                        </div>
-                                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                                            By Target University
-                                        </h4>
+                                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
+                                            {universityDistribution.uniqueCount} Targets
+                                        </span>
                                     </div>
-                                    <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
-                                        {universityDistribution.uniqueCount} Targets
-                                    </span>
-                                </div>
 
-                                {/* List of University Distribution Bars */}
-                                {universityDistribution.items.length === 0 ? (
-                                    <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
-                                        <School className="w-6 h-6 mx-auto mb-1.5 opacity-40" />
-                                        <p>No universities linked yet.</p>
-                                        <p className="text-[11px] mt-0.5 text-slate-400">Add or edit a paper to set target institutions.</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2 max-h-[148px] overflow-y-auto pr-1">
-                                        {universityDistribution.items.map((item) => {
-                                            const isSelected = selectedUniversity === item.name;
-                                            return (
-                                                <button
-                                                    key={item.name}
-                                                    type="button"
-                                                    onClick={() => setSelectedUniversity(isSelected ? 'all' : item.name)}
-                                                    className={`w-full text-left p-2 rounded-lg border transition-all cursor-pointer ${
-                                                        isSelected
-                                                            ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-500 ring-2 ring-indigo-500/20'
-                                                            : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
-                                                    }`}
+                                    {/* Recharts Horizontal Bar Chart */}
+                                    <div className="w-full h-[180px] flex items-center justify-center">
+                                        {universityChartData.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart
+                                                    layout="vertical"
+                                                    data={universityChartData}
+                                                    margin={{ top: 6, right: 12, left: -10, bottom: 0 }}
                                                 >
-                                                    <div className="flex items-center justify-between text-xs mb-1">
-                                                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate pr-2">
-                                                            {item.name}
-                                                        </span>
-                                                        <span className="text-[11px] font-mono font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">
-                                                            {item.count} {item.count === 1 ? 'paper' : 'papers'} ({item.pct}%)
-                                                        </span>
-                                                    </div>
-                                                    <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
-                                                        <div
-                                                            className="h-full bg-indigo-500 dark:bg-indigo-400 rounded-full transition-all duration-300"
-                                                            style={{ width: `${Math.max(item.pct, 6)}%` }}
-                                                        />
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
+                                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#cbd5e1" opacity={0.3} />
+                                                    <XAxis
+                                                        type="number"
+                                                        allowDecimals={false}
+                                                        tick={{ fontSize: 9, fill: '#94a3b8' }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                    />
+                                                    <YAxis
+                                                        type="category"
+                                                        dataKey="name"
+                                                        width={85}
+                                                        tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                    />
+                                                    <RechartsTooltip content={renderUniversityTooltip} />
+                                                    <Bar
+                                                        dataKey="count"
+                                                        radius={[0, 6, 6, 0]}
+                                                        onClick={(entry: any) => {
+                                                            if (entry && entry.fullName) {
+                                                                setSelectedUniversity(selectedUniversity === entry.fullName ? 'all' : entry.fullName);
+                                                            }
+                                                        }}
+                                                        cursor="pointer"
+                                                    >
+                                                        {universityChartData.map((entry, index) => (
+                                                            <Cell
+                                                                key={`uni-cell-${index}`}
+                                                                fill={entry.color}
+                                                                opacity={selectedUniversity !== 'all' && selectedUniversity !== entry.fullName ? 0.35 : 1}
+                                                            />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center text-slate-400 text-xs">
+                                                <School className="w-8 h-8 opacity-40 mb-1" />
+                                                <span>No university targets set</span>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+
+                                    {/* Quick Target University Pill Selector */}
+                                    <div className="space-y-1 max-h-[70px] overflow-y-auto pr-1">
+                                        {universityChartData.length === 0 ? (
+                                            <div className="text-[11px] text-slate-400 text-center py-1">
+                                                Tag papers with target universities to align with faculty applications.
+                                            </div>
+                                        ) : (
+                                            universityChartData.map((item) => {
+                                                const isSelected = selectedUniversity === item.fullName;
+                                                return (
+                                                    <button
+                                                        key={item.fullName}
+                                                        type="button"
+                                                        onClick={() => setSelectedUniversity(isSelected ? 'all' : item.fullName)}
+                                                        className={`w-full flex items-center justify-between px-2 py-1 rounded-lg text-xs transition-all cursor-pointer ${
+                                                            isSelected
+                                                                ? 'bg-indigo-100/70 dark:bg-indigo-900/40 text-indigo-900 dark:text-indigo-200 ring-1 ring-indigo-500'
+                                                                : 'bg-white dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-300'
+                                                        }`}
+                                                    >
+                                                        <span className="truncate pr-1 font-medium">{item.fullName}</span>
+                                                        <span className="font-mono text-[10px] text-slate-500 shrink-0 font-semibold">
+                                                            {item.count}p ({item.percentage}%)
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* 2. FOCUSED TAB VIEW: Reading Status Donut Deep Dive */}
+                        {selectedChartTab === 'status' && (
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center p-5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
+                                <div className="md:col-span-5 relative w-full h-[240px] flex items-center justify-center">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <RechartsPieChart>
+                                            <Pie
+                                                data={statusChartData}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={65}
+                                                outerRadius={95}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                                onClick={(entry: any) => {
+                                                    if (entry && entry.status) {
+                                                        setStatusFilter(statusFilter === entry.status ? 'all' : entry.status);
+                                                    }
+                                                }}
+                                                cursor="pointer"
+                                            >
+                                                {statusChartData.map((entry, index) => (
+                                                    <Cell
+                                                        key={`status-focus-${index}`}
+                                                        fill={entry.color}
+                                                        stroke="#ffffff"
+                                                        strokeWidth={statusFilter === entry.status ? 4 : 2}
+                                                    />
+                                                ))}
+                                            </Pie>
+                                            <RechartsTooltip content={renderStatusTooltip} />
+                                        </RechartsPieChart>
+                                    </ResponsiveContainer>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                        <span className="text-3xl font-black font-mono text-slate-900 dark:text-white">
+                                            {statusDistribution.readPct}%
+                                        </span>
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                            Read Rate
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="md:col-span-7 space-y-4">
+                                    <div>
+                                        <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                                            Reading Status Analytics
+                                        </h4>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Track your literature review throughput. Complete read papers empower candidate SOP hooks and tailored faculty cold emails.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div
+                                            onClick={() => setStatusFilter(statusFilter === 'read' ? 'all' : 'read')}
+                                            className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                                                statusFilter === 'read'
+                                                    ? 'bg-emerald-100/70 dark:bg-emerald-900/40 border-emerald-500 ring-2 ring-emerald-500/20'
+                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs mb-1">
+                                                <CheckCircle2 className="w-3.5 h-3.5" /> Fully Read Papers
+                                            </div>
+                                            <div className="text-2xl font-black font-mono text-slate-900 dark:text-white">
+                                                {statusDistribution.read}
+                                            </div>
+                                            <div className="text-[11px] text-slate-500">{statusDistribution.readPct}% of total catalog</div>
+                                        </div>
+
+                                        <div
+                                            onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
+                                            className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                                                statusFilter === 'pending'
+                                                    ? 'bg-amber-100/70 dark:bg-amber-900/40 border-amber-500 ring-2 ring-amber-500/20'
+                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-1.5 text-amber-600 font-bold text-xs mb-1">
+                                                <Clock className="w-3.5 h-3.5" /> Pending Queue
+                                            </div>
+                                            <div className="text-2xl font-black font-mono text-slate-900 dark:text-white">
+                                                {statusDistribution.pending}
+                                            </div>
+                                            <div className="text-[11px] text-slate-500">{statusDistribution.pendingPct}% awaiting review</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/60 text-xs text-blue-900 dark:text-blue-200 flex items-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+                                        <span>Click either status card above to filter the papers list directly.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. FOCUSED TAB VIEW: Priority Level Deep Dive */}
+                        {selectedChartTab === 'priority' && (
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center p-5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
+                                <div className="md:col-span-6 w-full h-[240px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={priorityChartData}
+                                            margin={{ top: 15, right: 15, left: -10, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" opacity={0.3} />
+                                            <XAxis
+                                                dataKey="label"
+                                                tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                                                axisLine={false}
+                                                tickLine={false}
+                                            />
+                                            <YAxis
+                                                allowDecimals={false}
+                                                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                                axisLine={false}
+                                                tickLine={false}
+                                            />
+                                            <RechartsTooltip content={renderPriorityTooltip} />
+                                            <Bar
+                                                dataKey="count"
+                                                radius={[8, 8, 0, 0]}
+                                                onClick={(entry: any) => {
+                                                    if (entry && entry.priority) {
+                                                        setPriorityFilter(priorityFilter === entry.priority ? 'all' : entry.priority);
+                                                    }
+                                                }}
+                                                cursor="pointer"
+                                            >
+                                                {priorityChartData.map((entry, index) => (
+                                                    <Cell
+                                                        key={`priority-focus-${index}`}
+                                                        fill={entry.color}
+                                                        opacity={priorityFilter !== 'all' && priorityFilter !== entry.priority ? 0.35 : 1}
+                                                    />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                <div className="md:col-span-6 space-y-4">
+                                    <div>
+                                        <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                                            Strategic Priority Analysis
+                                        </h4>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Prioritize reading seminal papers from prospective PIs and high-impact target labs before drafting application essays.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPriorityFilter(priorityFilter === 'high' ? 'all' : 'high')}
+                                            className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                                                priorityFilter === 'high'
+                                                    ? 'bg-rose-100/70 dark:bg-rose-900/40 border-rose-500 ring-2 ring-rose-500/20'
+                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                            }`}
+                                        >
+                                            <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase">High Tier</div>
+                                            <div className="text-2xl font-black font-mono text-slate-900 dark:text-white my-0.5">
+                                                {priorityDistribution.high}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400">{priorityDistribution.highPct}%</div>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setPriorityFilter(priorityFilter === 'medium' ? 'all' : 'medium')}
+                                            className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                                                priorityFilter === 'medium'
+                                                    ? 'bg-amber-100/70 dark:bg-amber-900/40 border-amber-500 ring-2 ring-amber-500/20'
+                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                            }`}
+                                        >
+                                            <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">Medium Tier</div>
+                                            <div className="text-2xl font-black font-mono text-slate-900 dark:text-white my-0.5">
+                                                {priorityDistribution.medium}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400">{priorityDistribution.mediumPct}%</div>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setPriorityFilter(priorityFilter === 'low' ? 'all' : 'low')}
+                                            className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                                                priorityFilter === 'low'
+                                                    ? 'bg-sky-100/70 dark:bg-sky-900/40 border-sky-500 ring-2 ring-sky-500/20'
+                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                            }`}
+                                        >
+                                            <div className="text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase">Low Tier</div>
+                                            <div className="text-2xl font-black font-mono text-slate-900 dark:text-white my-0.5">
+                                                {priorityDistribution.low}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400">{priorityDistribution.lowPct}%</div>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 4. FOCUSED TAB VIEW: University Ranking Deep Dive */}
+                        {selectedChartTab === 'university' && (
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center p-5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
+                                <div className="md:col-span-7 w-full h-[250px]">
+                                    {universityChartData.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart
+                                                layout="vertical"
+                                                data={universityChartData}
+                                                margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#cbd5e1" opacity={0.3} />
+                                                <XAxis
+                                                    type="number"
+                                                    allowDecimals={false}
+                                                    tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                />
+                                                <YAxis
+                                                    type="category"
+                                                    dataKey="name"
+                                                    width={100}
+                                                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                />
+                                                <RechartsTooltip content={renderUniversityTooltip} />
+                                                <Bar
+                                                    dataKey="count"
+                                                    radius={[0, 8, 8, 0]}
+                                                    onClick={(entry: any) => {
+                                                        if (entry && entry.fullName) {
+                                                            setSelectedUniversity(selectedUniversity === entry.fullName ? 'all' : entry.fullName);
+                                                        }
+                                                    }}
+                                                    cursor="pointer"
+                                                >
+                                                    {universityChartData.map((entry, index) => (
+                                                        <Cell
+                                                            key={`uni-focus-${index}`}
+                                                            fill={entry.color}
+                                                            opacity={selectedUniversity !== 'all' && selectedUniversity !== entry.fullName ? 0.35 : 1}
+                                                        />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs">
+                                            <School className="w-10 h-10 opacity-40 mb-2" />
+                                            <span>No target universities linked yet.</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="md:col-span-5 space-y-3">
+                                    <div>
+                                        <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                                            Target University Coverage
+                                        </h4>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            {universityDistribution.uniqueCount} distinct universities identified across your tracked papers.
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                                        {universityChartData.map(item => (
+                                            <button
+                                                key={item.fullName}
+                                                type="button"
+                                                onClick={() => setSelectedUniversity(selectedUniversity === item.fullName ? 'all' : item.fullName)}
+                                                className={`w-full flex items-center justify-between p-2 rounded-xl text-xs border transition-all cursor-pointer ${
+                                                    selectedUniversity === item.fullName
+                                                        ? 'bg-indigo-100/70 dark:bg-indigo-900/40 border-indigo-500 text-indigo-900 dark:text-indigo-200'
+                                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                <span className="font-semibold truncate pr-2">{item.fullName}</span>
+                                                <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                                                    {item.count} papers ({item.percentage}%)
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Active Analytics Filter Status Footer Banner */}
                         {(statusFilter !== 'all' || priorityFilter !== 'all' || selectedUniversity !== 'all') && (
