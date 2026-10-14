@@ -14,6 +14,7 @@ import { InterviewSimulation } from './components/InterviewSimulation';
 import { DeadlineNotificationCenter } from './components/DeadlineNotificationCenter';
 import { LinkedInFormatterModal, LinkedInIcon } from './components/LinkedInFormatterModal';
 import { GoogleScholarModal, GoogleScholarIcon } from './components/GoogleScholarModal';
+import { ResearchPaperTracker } from './components/ResearchPaperTracker';
 import { AboutSection } from './components/AboutSection';
 import { AgenticDiscoveryModal, STEM_DISCIPLINE_LIST } from './components/AgenticDiscoveryModal';
 import { 
@@ -51,7 +52,9 @@ import {
     CvProfile, 
     TimelineMilestone,
     StemDiscipline,
-    AgenticDiscoveryStep
+    AgenticDiscoveryStep,
+    ResearchPaperItem,
+    ScholarPaper
 } from './types';
 import { 
     signInWithGoogle, 
@@ -60,6 +63,9 @@ import {
     subscribeToCvProfiles, 
     saveCvProfileToFirestore, 
     deleteCvProfileFromFirestore, 
+    saveResearchPaperToFirestore,
+    deleteResearchPaperFromFirestore,
+    subscribeToResearchPapers,
     testConnection 
 } from './services/firebaseService';
 import { 
@@ -183,6 +189,16 @@ const App: React.FC = () => {
     const [scholarModalAuthor, setScholarModalAuthor] = useState<string>('');
     const [scholarModalInstitution, setScholarModalInstitution] = useState<string>('');
 
+    // Research Paper Tracker State
+    const [researchPapers, setResearchPapers] = useState<ResearchPaperItem[]>(() => {
+        try {
+            const saved = localStorage.getItem('academic_research_papers_v1');
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+
     // Deadlines Tab sorting state
     const [deadlineSortOrder, setDeadlineSortOrder] = useState<'soonest' | 'farthest'>('soonest');
 
@@ -243,10 +259,31 @@ const App: React.FC = () => {
             if (cvText) localStorage.setItem('scholar_cv_text', cvText);
             if (cvAnalysis) localStorage.setItem('scholar_cv_analysis', JSON.stringify(cvAnalysis));
             if (scholarships.length > 0) localStorage.setItem('scholar_opportunities', JSON.stringify(scholarships));
+            localStorage.setItem('academic_research_papers_v1', JSON.stringify(researchPapers));
         } catch (e) {
             console.debug('LocalStorage write error:', e);
         }
-    }, [cvText, cvAnalysis, scholarships]);
+    }, [cvText, cvAnalysis, scholarships, researchPapers]);
+
+    // Synchronize research papers with Firestore when user is authenticated
+    useEffect(() => {
+        if (!currentUser) return;
+        const unsubscribe = subscribeToResearchPapers(
+            currentUser.uid,
+            (serverPapers) => {
+                if (serverPapers && serverPapers.length > 0) {
+                    setResearchPapers(prev => {
+                        const map = new Map<string, ResearchPaperItem>();
+                        prev.forEach(p => map.set(p.id, p));
+                        serverPapers.forEach(p => map.set(p.id, p));
+                        return Array.from(map.values());
+                    });
+                }
+            },
+            (err) => console.debug('Firestore papers sync note:', err)
+        );
+        return () => unsubscribe();
+    }, [currentUser]);
 
     // Automatic 3-Day Deadline Push Notification Monitor
     useEffect(() => {
@@ -865,6 +902,67 @@ const App: React.FC = () => {
         setIsGoogleScholarModalOpen(false);
     }, []);
 
+    // Research Paper Tracker Handlers
+    const handleSaveResearchPaper = useCallback((paper: ResearchPaperItem) => {
+        setResearchPapers(prev => {
+            const index = prev.findIndex(p => p.id === paper.id);
+            if (index >= 0) {
+                const next = [...prev];
+                next[index] = paper;
+                return next;
+            }
+            return [paper, ...prev];
+        });
+
+        if (currentUser) {
+            saveResearchPaperToFirestore(currentUser.uid, paper).catch(err => {
+                console.warn('Firestore research paper save note:', err);
+            });
+        }
+    }, [currentUser]);
+
+    const handleDeleteResearchPaper = useCallback((paperId: string) => {
+        setResearchPapers(prev => prev.filter(p => p.id !== paperId));
+        if (currentUser) {
+            deleteResearchPaperFromFirestore(currentUser.uid, paperId).catch(err => {
+                console.warn('Firestore research paper delete note:', err);
+            });
+        }
+    }, [currentUser]);
+
+    const handle1ClickSaveFromScholar = useCallback((scholarPaper: ScholarPaper) => {
+        const existing = researchPapers.find(p => p.id === scholarPaper.id || p.title.toLowerCase().trim() === scholarPaper.title.toLowerCase().trim());
+        if (existing) {
+            handleDeleteResearchPaper(existing.id);
+            return;
+        }
+
+        const newPaper: ResearchPaperItem = {
+            id: scholarPaper.id || `paper-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            title: scholarPaper.title,
+            authors: scholarPaper.authors || [],
+            journalOrVenue: scholarPaper.journalOrVenue || 'Google Scholar',
+            year: scholarPaper.year || new Date().getFullYear(),
+            citationCount: scholarPaper.citationCount,
+            abstract: scholarPaper.abstract,
+            scholarUrl: scholarPaper.scholarUrl,
+            pdfUrl: scholarPaper.pdfUrl,
+            doi: scholarPaper.doi,
+            status: 'pending',
+            priority: 'high',
+            targetUniversity: scholarModalInstitution || undefined,
+            targetProfessor: scholarModalAuthor || undefined,
+            tags: [scholarPaper.journalOrVenue || 'Academic Paper'].filter(Boolean),
+            sopHookSentence: scholarPaper.sopHookSentence,
+            apaCitation: scholarPaper.apaCitation,
+            bibtex: scholarPaper.bibtex,
+            dateAdded: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        handleSaveResearchPaper(newPaper);
+    }, [researchPapers, scholarModalInstitution, scholarModalAuthor, handleSaveResearchPaper, handleDeleteResearchPaper]);
+
     // Filter scholarships based on search query, tier, score, and bookmarked
     const filteredScholarships = useMemo(() => {
         return scholarships.filter(s => {
@@ -1006,6 +1104,7 @@ const App: React.FC = () => {
                     onSelectTab={setActiveTab}
                     savedCount={bookmarkedCount}
                     deadlinesCount={upcomingDeadlines.length}
+                    papersCount={researchPapers.filter(p => p.status === 'pending').length}
                     activeTheme={activeTheme}
                     onChangeTheme={setActiveTheme}
                     currentUser={currentUser}
@@ -1649,6 +1748,17 @@ const App: React.FC = () => {
                         />
                     )}
 
+                    {/* TAB: RESEARCH PAPER TRACKER */}
+                    {activeTab === Tab.ResearchPaperTracker && (
+                        <ResearchPaperTracker
+                            papers={researchPapers}
+                            onSavePaper={handleSaveResearchPaper}
+                            onDeletePaper={handleDeleteResearchPaper}
+                            onOpenScholarModal={(q, author, inst) => handleOpenGoogleScholar(q || '', author || '', inst || '')}
+                            applicationTargets={scholarships}
+                        />
+                    )}
+
                     {/* TAB 6: DEADLINES */}
                     {activeTab === Tab.Deadlines && (
                         <div className="space-y-6">
@@ -1764,6 +1874,8 @@ const App: React.FC = () => {
                 initialAuthor={scholarModalAuthor}
                 initialInstitution={scholarModalInstitution}
                 onInsertCitationIntoDraft={handleInsertScholarCitationIntoDraft}
+                onSavePaperToTracker={handle1ClickSaveFromScholar}
+                savedPaperIds={researchPapers.map(p => p.id)}
             />
 
             {/* Agentic STEM Faculty & University Discovery Console Modal */}

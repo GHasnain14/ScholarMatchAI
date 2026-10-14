@@ -58,12 +58,140 @@
         }
       },
       "required": ["id", "userId", "name", "targetField", "text", "isDefault", "createdAt", "updatedAt"]
+    },
+    "ResearchPaperItem": {
+      "title": "Research Paper Item",
+      "description": "Saved scientific research paper in candidate's literature tracker with notes, tags, priority, and reading status.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the research paper item.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Full title of the paper.",
+          "maxLength": 500
+        },
+        "authors": {
+          "type": "array",
+          "description": "List of paper authors.",
+          "items": { "type": "string" }
+        },
+        "journalOrVenue": {
+          "type": "string",
+          "description": "Journal, conference venue, or preprint server.",
+          "maxLength": 200
+        },
+        "year": {
+          "type": "string",
+          "description": "Year of publication.",
+          "maxLength": 32
+        },
+        "citationCount": {
+          "type": "number",
+          "description": "Total citation count if known."
+        },
+        "abstract": {
+          "type": "string",
+          "description": "Abstract snippet or summary.",
+          "maxLength": 5000
+        },
+        "scholarUrl": {
+          "type": "string",
+          "description": "Google Scholar or primary paper URL.",
+          "maxLength": 1000
+        },
+        "pdfUrl": {
+          "type": "string",
+          "description": "Direct open access or PDF link.",
+          "maxLength": 1000
+        },
+        "doi": {
+          "type": "string",
+          "description": "Digital Object Identifier (DOI).",
+          "maxLength": 200
+        },
+        "status": {
+          "type": "string",
+          "description": "Reading status: pending or read.",
+          "enum": ["pending", "read"]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Reading priority: high, medium, low.",
+          "enum": ["high", "medium", "low"]
+        },
+        "targetUniversity": {
+          "type": "string",
+          "description": "Target university or lab associated with this paper.",
+          "maxLength": 200
+        },
+        "targetProfessor": {
+          "type": "string",
+          "description": "Target professor or PI name associated with this paper.",
+          "maxLength": 150
+        },
+        "tags": {
+          "type": "array",
+          "description": "User tags for categorization.",
+          "items": { "type": "string" }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Candidate's analysis, methodology takeaways, and personal critique.",
+          "maxLength": 5000
+        },
+        "sopHookSentence": {
+          "type": "string",
+          "description": "Suggested hook sentence for inclusion in SOP or cold outreach email.",
+          "maxLength": 1000
+        },
+        "apaCitation": {
+          "type": "string",
+          "description": "Formatted APA citation.",
+          "maxLength": 1000
+        },
+        "bibtex": {
+          "type": "string",
+          "description": "BibTeX entry string.",
+          "maxLength": 2000
+        },
+        "dateAdded": {
+          "type": "string",
+          "description": "Creation timestamp in ISO 8601 format.",
+          "maxLength": 64
+        },
+        "dateRead": {
+          "type": "string",
+          "description": "Timestamp when marked as read.",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp in ISO 8601 format.",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "userId", "title", "journalOrVenue", "year", "status", "priority", "dateAdded", "updatedAt"]
     }
   },
   "firestore": {
     "/users/{userId}/cv_profiles/{profileId}": {
       "schema": "CvProfile",
       "description": "Collection of tailored CV profile versions owned by a user."
+    },
+    "/users/{userId}/research_papers/{paperId}": {
+      "schema": "ResearchPaperItem",
+      "description": "Collection of research papers tracked by the user."
     }
   }
 }

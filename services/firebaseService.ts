@@ -20,7 +20,7 @@ import {
     orderBy
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { CvProfile } from '../types';
+import { CvProfile, ResearchPaperItem } from '../types';
 
 export enum OperationType {
     CREATE = 'create',
@@ -187,6 +187,94 @@ export function subscribeToCvProfiles(
                 profiles.push(d.data() as CvProfile);
             });
             callback(profiles);
+        },
+        (error) => {
+            if (onError) onError(error);
+            handleFirestoreError(error, OperationType.LIST, collectionPath);
+        }
+    );
+}
+
+// Firestore Research Papers Operations
+export async function saveResearchPaperToFirestore(userId: string, paper: ResearchPaperItem): Promise<void> {
+    const paperPath = `users/${userId}/research_papers/${paper.id}`;
+    try {
+        const payload: Record<string, any> = {
+            id: paper.id,
+            userId: userId,
+            title: paper.title.slice(0, 500),
+            authors: (paper.authors || []).slice(0, 50).map(a => String(a).slice(0, 150)),
+            journalOrVenue: (paper.journalOrVenue || 'Unknown Venue').slice(0, 200),
+            year: String(paper.year || new Date().getFullYear()).slice(0, 32),
+            status: paper.status === 'read' ? 'read' : 'pending',
+            priority: ['high', 'medium', 'low'].includes(paper.priority) ? paper.priority : 'medium',
+            tags: (paper.tags || []).slice(0, 30).map(t => String(t).slice(0, 50)),
+            dateAdded: paper.dateAdded || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+
+        if (typeof paper.citationCount === 'number') payload.citationCount = paper.citationCount;
+        if (paper.abstract) payload.abstract = paper.abstract.slice(0, 5000);
+        if (paper.scholarUrl) payload.scholarUrl = paper.scholarUrl.slice(0, 1000);
+        if (paper.pdfUrl) payload.pdfUrl = paper.pdfUrl.slice(0, 1000);
+        if (paper.doi) payload.doi = paper.doi.slice(0, 200);
+        if (paper.targetUniversity) payload.targetUniversity = paper.targetUniversity.slice(0, 200);
+        if (paper.targetProfessor) payload.targetProfessor = paper.targetProfessor.slice(0, 150);
+        if (paper.notes) payload.notes = paper.notes.slice(0, 5000);
+        if (paper.sopHookSentence) payload.sopHookSentence = paper.sopHookSentence.slice(0, 1000);
+        if (paper.apaCitation) payload.apaCitation = paper.apaCitation.slice(0, 1000);
+        if (paper.bibtex) payload.bibtex = paper.bibtex.slice(0, 2000);
+        if (paper.dateRead) payload.dateRead = paper.dateRead.slice(0, 64);
+
+        await setDoc(doc(db, 'users', userId, 'research_papers', paper.id), payload);
+    } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, paperPath);
+    }
+}
+
+export async function deleteResearchPaperFromFirestore(userId: string, paperId: string): Promise<void> {
+    const paperPath = `users/${userId}/research_papers/${paperId}`;
+    try {
+        await deleteDoc(doc(db, 'users', userId, 'research_papers', paperId));
+    } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, paperPath);
+    }
+}
+
+export async function fetchResearchPapersFromFirestore(userId: string): Promise<ResearchPaperItem[]> {
+    const collectionPath = `users/${userId}/research_papers`;
+    try {
+        const colRef = collection(db, 'users', userId, 'research_papers');
+        const q = query(colRef, orderBy('updatedAt', 'desc'));
+        const snapshot = await getDocs(q);
+        const papers: ResearchPaperItem[] = [];
+        snapshot.forEach((d) => {
+            const data = d.data() as ResearchPaperItem;
+            papers.push(data);
+        });
+        return papers;
+    } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, collectionPath);
+    }
+}
+
+export function subscribeToResearchPapers(
+    userId: string,
+    callback: (papers: ResearchPaperItem[]) => void,
+    onError?: (error: any) => void
+): () => void {
+    const collectionPath = `users/${userId}/research_papers`;
+    const colRef = collection(db, 'users', userId, 'research_papers');
+    const q = query(colRef, orderBy('updatedAt', 'desc'));
+
+    return onSnapshot(
+        q,
+        (snapshot) => {
+            const papers: ResearchPaperItem[] = [];
+            snapshot.forEach((d) => {
+                papers.push(d.data() as ResearchPaperItem);
+            });
+            callback(papers);
         },
         (error) => {
             if (onError) onError(error);

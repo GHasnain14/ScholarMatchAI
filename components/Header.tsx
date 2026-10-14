@@ -26,6 +26,7 @@ interface HeaderProps {
     onSelectTab: (tab: Tab) => void;
     savedCount: number;
     deadlinesCount: number;
+    papersCount?: number;
     activeTheme: string;
     onChangeTheme: (theme: string) => void;
     currentUser: User | null;
@@ -41,6 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
     onSelectTab,
     savedCount,
     deadlinesCount,
+    papersCount = 0,
     activeTheme,
     onChangeTheme,
     currentUser,
@@ -95,6 +97,15 @@ export const Header: React.FC<HeaderProps> = ({
             icon: BarChart2,
             color: 'from-emerald-500 to-teal-600',
             activeColor: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 shadow-2xs font-bold',
+        },
+        {
+            id: Tab.ResearchPaperTracker,
+            label: 'Paper Tracker',
+            icon: BookOpen,
+            color: 'from-blue-600 to-indigo-600',
+            badge: papersCount > 0 ? `${papersCount}` : undefined,
+            badgeColor: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white',
+            activeColor: 'bg-blue-50 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-200 dark:border-blue-800 shadow-2xs font-bold',
         },
         {
             id: Tab.WatermarkRemover,

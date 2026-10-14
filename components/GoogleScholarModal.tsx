@@ -18,7 +18,9 @@ import {
     Calendar,
     User,
     CheckCircle2,
-    Send
+    Send,
+    Bookmark,
+    BookmarkCheck
 } from 'lucide-react';
 import { ScholarPaper, ScholarAuthorProfile } from '../types';
 import { searchGoogleScholar, fetchScholarAuthorProfile } from '../services/geminiService';
@@ -41,6 +43,8 @@ interface GoogleScholarModalProps {
     initialAuthor?: string;
     initialInstitution?: string;
     onInsertCitationIntoDraft?: (citationText: string) => void;
+    onSavePaperToTracker?: (paper: ScholarPaper) => void;
+    savedPaperIds?: string[];
 }
 
 type FilterMode = 'all' | 'recent' | 'cited' | 'open-access';
@@ -52,6 +56,8 @@ export const GoogleScholarModal: React.FC<GoogleScholarModalProps> = ({
     initialAuthor = '',
     initialInstitution = '',
     onInsertCitationIntoDraft,
+    onSavePaperToTracker,
+    savedPaperIds = [],
 }) => {
     const [searchQuery, setSearchQuery] = useState<string>(initialQuery || initialAuthor || '');
     const [authorName, setAuthorName] = useState<string>(initialAuthor);
@@ -485,6 +491,32 @@ export const GoogleScholarModal: React.FC<GoogleScholarModalProps> = ({
                                                         <>
                                                             <Sparkles className="w-3 h-3" />
                                                             <span>Cite in SOP / Email</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )}
+
+                                            {/* Save to Research Paper Tracker */}
+                                            {onSavePaperToTracker && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onSavePaperToTracker(paper)}
+                                                    className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                                        savedPaperIds.includes(paper.id)
+                                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                                            : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60'
+                                                    }`}
+                                                    title={savedPaperIds.includes(paper.id) ? "Saved in Research Paper Tracker" : "Save to Research Paper Tracker"}
+                                                >
+                                                    {savedPaperIds.includes(paper.id) ? (
+                                                        <>
+                                                            <BookmarkCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                                            <span>Saved</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Bookmark className="w-3.5 h-3.5 text-indigo-600" />
+                                                            <span>Save to Tracker</span>
                                                         </>
                                                     )}
                                                 </button>

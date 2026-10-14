@@ -45,7 +45,7 @@ service cloud.firestore {
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
     }
 
-    match /users/{userId}/cv_profiles/{profileId} {
+      match /users/{userId}/cv_profiles/{profileId} {
       allow get: if isOwner(userId) && isValidId(profileId);
       allow list: if isOwner(userId);
       allow delete: if isOwner(userId) && isValidId(profileId);
@@ -60,6 +60,49 @@ service cloud.firestore {
         && incoming().id == existing().id
         && incoming().userId == existing().userId
         && incoming().createdAt == existing().createdAt;
+    }
+
+    function isValidResearchPaper(data, userId, paperId) {
+      let reqKeys = ['id', 'userId', 'title', 'journalOrVenue', 'year', 'status', 'priority', 'dateAdded', 'updatedAt'];
+      let allAllowed = [
+        'id', 'userId', 'title', 'authors', 'journalOrVenue', 'year', 'citationCount',
+        'abstract', 'scholarUrl', 'pdfUrl', 'doi', 'status', 'priority',
+        'targetUniversity', 'targetProfessor', 'tags', 'notes', 'sopHookSentence',
+        'apaCitation', 'bibtex', 'dateAdded', 'dateRead', 'updatedAt'
+      ];
+
+      return data.keys().hasAll(reqKeys)
+        && data.keys().hasOnly(allAllowed)
+        && data.id == paperId
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 500
+        && data.journalOrVenue is string && data.journalOrVenue.size() <= 200
+        && (data.status == 'pending' || data.status == 'read')
+        && (data.priority == 'high' || data.priority == 'medium' || data.priority == 'low')
+        && data.dateAdded is string && data.dateAdded.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 5000))
+        && (!('abstract' in data) || (data.abstract is string && data.abstract.size() <= 5000))
+        && (!('targetUniversity' in data) || (data.targetUniversity is string && data.targetUniversity.size() <= 200))
+        && (!('targetProfessor' in data) || (data.targetProfessor is string && data.targetProfessor.size() <= 150));
+    }
+
+    match /users/{userId}/research_papers/{paperId} {
+      allow get: if isOwner(userId) && isValidId(paperId);
+      allow list: if isOwner(userId);
+      allow delete: if isOwner(userId) && isValidId(paperId);
+
+      allow create: if isOwner(userId)
+        && isValidId(paperId)
+        && isValidResearchPaper(incoming(), userId, paperId);
+
+      allow update: if isOwner(userId)
+        && isValidId(paperId)
+        && isValidResearchPaper(incoming(), userId, paperId)
+        && incoming().id == existing().id
+        && incoming().userId == existing().userId
+        && incoming().dateAdded == existing().dateAdded;
     }
 
     // Connection test document

@@ -228,6 +228,7 @@ export enum Tab {
     WatermarkRemover = "watermark-remover",
     DraftDocuments = "draft-documents",
     ApplicationTracker = "application-tracker",
+    ResearchPaperTracker = "research-paper-tracker",
     Deadlines = "deadlines",
 }
 
@@ -404,6 +405,35 @@ export interface ScholarAuthorProfile {
     totalCitations?: number;
     interests?: string[];
     topPapers: ScholarPaper[];
+}
+
+export type ReadingStatus = 'pending' | 'read';
+export type PaperPriority = 'high' | 'medium' | 'low';
+
+export interface ResearchPaperItem {
+    id: string;
+    userId?: string;
+    title: string;
+    authors: string[];
+    journalOrVenue: string;
+    year: number | string;
+    citationCount?: number;
+    abstract?: string;
+    scholarUrl?: string;
+    pdfUrl?: string;
+    doi?: string;
+    status: ReadingStatus;
+    priority: PaperPriority;
+    targetUniversity?: string;
+    targetProfessor?: string;
+    tags: string[];
+    notes?: string;
+    sopHookSentence?: string;
+    apaCitation?: string;
+    bibtex?: string;
+    dateAdded: string;
+    dateRead?: string;
+    updatedAt: string;
 }
 
 export interface InterviewQuestion {
