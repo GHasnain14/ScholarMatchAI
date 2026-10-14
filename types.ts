@@ -410,6 +410,15 @@ export interface ScholarAuthorProfile {
 export type ReadingStatus = 'pending' | 'read';
 export type PaperPriority = 'high' | 'medium' | 'low';
 
+export interface PaperCvAlignmentInsight {
+    bullets: string[]; // 3-bullet point summary of why paper aligns with CV keywords
+    matchedKeywords: string[];
+    bridgeTheme: string;
+    sopActionHook?: string;
+    relevanceScore?: number; // 0 - 100%
+    generatedAt: string;
+}
+
 export interface ResearchPaperItem {
     id: string;
     userId?: string;
@@ -431,6 +440,7 @@ export interface ResearchPaperItem {
     sopHookSentence?: string;
     apaCitation?: string;
     bibtex?: string;
+    cvAlignmentInsight?: PaperCvAlignmentInsight;
     dateAdded: string;
     dateRead?: string;
     updatedAt: string;

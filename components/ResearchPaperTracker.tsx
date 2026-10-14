@@ -34,7 +34,13 @@ import {
     PieChart as PieChartIcon,
     RefreshCw,
     SlidersHorizontal,
-    Layers
+    Layers,
+    Lightbulb,
+    Brain,
+    ListChecks,
+    Target,
+    ChevronRight,
+    Zap
 } from 'lucide-react';
 import {
     ResponsiveContainer,
@@ -48,7 +54,7 @@ import {
     Tooltip as RechartsTooltip,
     CartesianGrid
 } from 'recharts';
-import { ResearchPaperItem, ReadingStatus, PaperPriority, ScholarPaper, Scholarship } from '../types';
+import { ResearchPaperItem, ReadingStatus, PaperPriority, ScholarPaper, Scholarship, PaperCvAlignmentInsight } from '../types';
 
 interface ResearchPaperTrackerProps {
     papers: ResearchPaperItem[];
@@ -80,6 +86,16 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
     const [selectedTag, setSelectedTag] = useState<string>('all');
     const [selectedUniversity, setSelectedUniversity] = useState<string>('all');
     const [sortBy, setSortBy] = useState<'dateAdded-desc' | 'dateAdded-asc' | 'priority' | 'year-desc' | 'title'>('dateAdded-desc');
+
+    // View Switcher: 'library' (classic catalog & charts) vs 'insights' (AI 3-bullet CV alignment view)
+    const [activeTrackerView, setActiveTrackerView] = useState<'library' | 'insights'>('library');
+    const [selectedInsightPaperId, setSelectedInsightPaperId] = useState<string | null>(null);
+    const [generatingPaperId, setGeneratingPaperId] = useState<string | null>(null);
+    const [insightError, setInsightError] = useState<string | null>(null);
+    const [copiedBulletsId, setCopiedBulletsId] = useState<string | null>(null);
+    const [expandedCardInsightIds, setExpandedCardInsightIds] = useState<Set<string>>(new Set());
+    const [insightSearchQuery, setInsightSearchQuery] = useState<string>('');
+    const [isBatchGenerating, setIsBatchGenerating] = useState<boolean>(false);
 
     // Modals & Editors
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -641,6 +657,18 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                 notes: 'Crucial paper for modern generative AI applications. Note multi-head self-attention mechanics vs recurrent gates. Great hook for discussions on computational efficiency in sequence modeling.',
                 sopHookSentence: 'My proposed research builds upon the foundational multi-head self-attention principles established by Vaswani et al. to eliminate linear recurrence constraints in multi-agent scientific reasoning.',
                 apaCitation: 'Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., ... & Polosukhin, I. (2017). Attention is all you need. Advances in neural information processing systems, 30.',
+                cvAlignmentInsight: {
+                    bullets: [
+                        'Core Topical & Conceptual Convergence: The paper establishes the canonical non-recurrent sequence transduction paradigm, providing theoretical validation for your CV background in Deep Learning and Natural Language Processing.',
+                        'Methodological & Technical Synergy: The mathematical formulation of scaled dot-product attention and multi-head projection layers directly corresponds to your technical skills in Transformer implementation and PyTorch architectures.',
+                        'Strategic Application & SOP Impact: Citing Vaswani et al. (2017) provides a rigorous scholarly springboard in your Statement of Purpose to argue how you will design computational optimizations for sparse attention under target lab initiatives.'
+                    ],
+                    matchedKeywords: ['Deep Learning', 'Natural Language Processing', 'Sequence Models', 'Transformers'],
+                    bridgeTheme: 'Eliminating recurrent bottlenecks via scalable parallelized self-attention',
+                    sopActionHook: 'Building upon the foundational multi-head self-attention principles established by Vaswani et al., I aim to develop sub-quadratic attention primitives for long-context scientific reasoning.',
+                    relevanceScore: 98,
+                    generatedAt: new Date().toISOString()
+                },
                 dateAdded: new Date(Date.now() - 86400000 * 5).toISOString(),
                 dateRead: new Date(Date.now() - 86400000 * 2).toISOString(),
                 updatedAt: new Date().toISOString(),
@@ -664,6 +692,18 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                 notes: 'Review PAM sequence requirements (NGG) and non-homologous end joining (NHEJ) repair dynamics before cold emailing molecular biology labs.',
                 sopHookSentence: 'Inspired by the high-precision genome-scale editing pioneered by Cong et al., I aim to develop epigenetic transcriptional repressors with minimal off-target cleavage.',
                 apaCitation: 'Cong, L., Ran, F. A., Cox, D., Lin, S., Barretto, R., Habib, N., ... & Zhang, F. (2013). Multiplex genome engineering using CRISPR/Cas systems. Science, 339(6121), 819-823.',
+                cvAlignmentInsight: {
+                    bullets: [
+                        'Core Topical & Conceptual Convergence: Directly corroborates your academic preparation in Gene Editing and Bioengineering by establishing the foundational mammalian RNA-guided endonuclease workflow.',
+                        'Methodological & Technical Synergy: The transfection protocols, guide-RNA PAM sequence constraints, and NHEJ assay designs directly leverage your molecular biology and cell culture coursework.',
+                        'Strategic Application & SOP Impact: Citing Cong et al. demonstrates to prospective PIs that you possess immediate literacy in endonuclease precision and can hit the ground running in multiplexed gene perturbation.'
+                    ],
+                    matchedKeywords: ['Gene Editing', 'Bioengineering', 'Synthetic Biology'],
+                    bridgeTheme: 'Precision mammalian genome perturbation using microbial adaptive immunity',
+                    sopActionHook: 'Inspired by the high-precision genome-scale editing pioneered by Cong et al., I aim to develop epigenetic transcriptional repressors with minimal off-target cleavage.',
+                    relevanceScore: 94,
+                    generatedAt: new Date().toISOString()
+                },
                 dateAdded: new Date(Date.now() - 86400000 * 2).toISOString(),
                 updatedAt: new Date().toISOString(),
             },
@@ -686,12 +726,135 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                 notes: 'Key comparison between continuous neural implicit fields (NeRF) and explicit rasterized Gaussians. Check tile-based rasterizer CUDA kernels.',
                 sopHookSentence: 'My proposed research extends the real-time rasterization efficiency of 3D Gaussian Splatting (Kerbl et al.) to dynamic deformable surgical environments.',
                 apaCitation: 'Kerbl, B., Kopanas, G., Leimkühler, T., & Drettakis, G. (2023). 3d gaussian splatting for real-time radiance field rendering. ACM Transactions on Graphics, 42(4), 1-14.',
+                cvAlignmentInsight: {
+                    bullets: [
+                        'Core Topical & Conceptual Convergence: Connects with your preparation in Computer Vision and 3D Reconstruction, establishing an explicit rasterization approach over implicit coordinate neural fields.',
+                        'Methodological & Technical Synergy: The tile-based GPU rasterization and anisotropic covariance optimization directly match your technical skills in numerical computing and computer graphics.',
+                        'Strategic Application & SOP Impact: Articulating extensions to Kerbl et al. showcases technical depth during prospective PI interviews at vision and robotics research groups.'
+                    ],
+                    matchedKeywords: ['Computer Vision', '3D Reconstruction', 'Real-Time Rendering'],
+                    bridgeTheme: 'Real-time radiance field rendering via tile-based 3D Gaussian splatting',
+                    sopActionHook: 'My proposed doctoral research extends the real-time rasterization efficiency of 3D Gaussian Splatting (Kerbl et al.) to dynamic deformable surgical environments.',
+                    relevanceScore: 92,
+                    generatedAt: new Date().toISOString()
+                },
                 dateAdded: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             }
         ];
 
         samples.forEach(s => onSavePaper(s));
+    };
+
+    // Active paper for the dedicated insights view
+    const activeInsightPaper = useMemo(() => {
+        if (!papers || papers.length === 0) return null;
+        if (selectedInsightPaperId) {
+            const found = papers.find(p => p.id === selectedInsightPaperId);
+            if (found) return found;
+        }
+        return papers[0];
+    }, [papers, selectedInsightPaperId]);
+
+    // Count of papers with AI alignment generated
+    const papersWithInsightsCount = useMemo(() => {
+        return papers.filter(p => Boolean(p.cvAlignmentInsight && p.cvAlignmentInsight.bullets?.length >= 3)).length;
+    }, [papers]);
+
+    // Filtered papers specifically for the Insights view paper navigator
+    const insightFilteredPapers = useMemo(() => {
+        if (!insightSearchQuery.trim()) return papers;
+        const q = insightSearchQuery.toLowerCase();
+        return papers.filter(p => {
+            const titleMatch = p.title.toLowerCase().includes(q);
+            const authorMatch = (p.authors || []).some(a => a.toLowerCase().includes(q));
+            const tagMatch = (p.tags || []).some(t => t.toLowerCase().includes(q));
+            const uniMatch = (p.targetUniversity || '').toLowerCase().includes(q);
+            return titleMatch || authorMatch || tagMatch || uniMatch;
+        });
+    }, [papers, insightSearchQuery]);
+
+    // Generate AI 3-bullet point alignment summary for a specific paper
+    const handleGenerateAlignmentInsight = useCallback(async (targetPaper: ResearchPaperItem) => {
+        if (!targetPaper) return;
+        setGeneratingPaperId(targetPaper.id);
+        setInsightError(null);
+
+        try {
+            const response = await fetch('/api/research-papers/alignment-insights', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    paper: targetPaper,
+                    cvKeywords: activeCvKeywords.length > 0 ? activeCvKeywords : initialSuggestedKeywords,
+                    cvResearchFields,
+                    cvText
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `Server responded with ${response.status}`);
+            }
+
+            const data = await response.json();
+            const updated: ResearchPaperItem = {
+                ...targetPaper,
+                cvAlignmentInsight: {
+                    bullets: Array.isArray(data.bullets) ? data.bullets : [],
+                    matchedKeywords: Array.isArray(data.matchedKeywords) ? data.matchedKeywords : [],
+                    bridgeTheme: data.bridgeTheme || '',
+                    sopActionHook: data.sopActionHook || '',
+                    relevanceScore: typeof data.relevanceScore === 'number' ? data.relevanceScore : 88,
+                    generatedAt: new Date().toISOString()
+                },
+                sopHookSentence: targetPaper.sopHookSentence || data.sopActionHook,
+                updatedAt: new Date().toISOString()
+            };
+
+            onSavePaper(updated);
+            setExportNotice(`Generated 3-bullet AI alignment summary for "${targetPaper.title.slice(0, 32)}..."`);
+            setTimeout(() => setExportNotice(null), 3500);
+        } catch (err: any) {
+            console.error('Error in handleGenerateAlignmentInsight:', err);
+            setInsightError(err?.message || 'Failed to generate alignment insights with AI.');
+        } finally {
+            setGeneratingPaperId(null);
+        }
+    }, [activeCvKeywords, initialSuggestedKeywords, cvResearchFields, cvText, onSavePaper]);
+
+    // Batch generate insights for unanalyzed papers
+    const handleBatchGenerateInsights = async () => {
+        const unanalyzed = papers.filter(p => !p.cvAlignmentInsight || !p.cvAlignmentInsight.bullets?.length);
+        if (unanalyzed.length === 0) return;
+        setIsBatchGenerating(true);
+        try {
+            for (const p of unanalyzed.slice(0, 4)) {
+                await handleGenerateAlignmentInsight(p);
+            }
+        } finally {
+            setIsBatchGenerating(false);
+        }
+    };
+
+    // Copy 3-bullet points
+    const handleCopyBullets = (paper: ResearchPaperItem) => {
+        if (!paper.cvAlignmentInsight?.bullets) return;
+        const text = `AI CV Alignment Summary for "${paper.title}":\n\n` +
+            paper.cvAlignmentInsight.bullets.map((b, idx) => `${idx + 1}. ${b}`).join('\n\n') +
+            (paper.cvAlignmentInsight.sopActionHook ? `\n\nStatement of Purpose Action Hook:\n"${paper.cvAlignmentInsight.sopActionHook}"` : '');
+        navigator.clipboard.writeText(text);
+        setCopiedBulletsId(paper.id);
+        setTimeout(() => setCopiedBulletsId(null), 2500);
+    };
+
+    const toggleCardInsightExpansion = (paperId: string) => {
+        setExpandedCardInsightIds(prev => {
+            const next = new Set(prev);
+            if (next.has(paperId)) next.delete(paperId);
+            else next.add(paperId);
+            return next;
+        });
     };
 
     return (

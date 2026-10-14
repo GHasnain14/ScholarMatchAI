@@ -2164,6 +2164,146 @@ ${useEmojis ? "Use tasteful, clean unicode emojis (🔬, 💡, 🛠️, 📊, �
         }
     });
 
+    // Helper: Fallback 3-bullet point alignment summary generator
+    function synthesizePaperAlignmentFallback(paper: any, cvKeywords: string[]): {
+        bullets: string[];
+        matchedKeywords: string[];
+        bridgeTheme: string;
+        sopActionHook: string;
+        relevanceScore: number;
+    } {
+        const title = paper?.title || "Target Scholarly Paper";
+        const abstract = paper?.abstract || "";
+        const tags = Array.isArray(paper?.tags) ? paper.tags : [];
+        const paperContent = `${title} ${abstract} ${tags.join(" ")}`.toLowerCase();
+
+        // Detect overlapping or relevant keywords
+        const activeKeywords = cvKeywords.length > 0
+            ? cvKeywords
+            : ["Machine Learning", "Deep Architectures", "Empirical Evaluation", "Statistical Modeling"];
+
+        const matched = activeKeywords.filter(kw => paperContent.includes(kw.toLowerCase()));
+        const primaryMatched = matched.length > 0 ? matched : activeKeywords.slice(0, 3);
+        const topKw1 = primaryMatched[0] || "Foundational Research";
+        const topKw2 = primaryMatched[1] || primaryMatched[0] || "Methodological Rigor";
+        const topKw3 = primaryMatched[2] || "Experimental Validation";
+
+        const firstAuthor = Array.isArray(paper?.authors) && paper.authors.length > 0
+            ? paper.authors[0]
+            : "the authors";
+        const year = paper?.year || new Date().getFullYear();
+
+        const bullets = [
+            `Core Topical & Conceptual Convergence: This publication investigates core paradigms within ${topKw1}, addressing theoretical and empirical questions that directly substantiate the research trajectory documented in your CV.`,
+            `Methodological & Technical Synergy: The empirical protocol and mathematical framework utilized in this work mirror your preparation in ${topKw2}, providing a strong methodological baseline you can leverage without retraining.`,
+            `Strategic SOP & Academic Outreach Hook: Citing ${firstAuthor} et al. (${year}) allows you to articulate a targeted thesis direction in your Statement of Purpose, proving to prospective PIs that your background in ${topKw3} enables immediate contribution to their active lab initiatives.`
+        ];
+
+        return {
+            bullets,
+            matchedKeywords: primaryMatched,
+            bridgeTheme: `Interdisciplinary synthesis between ${topKw1} and ${title.slice(0, 50)}...`,
+            sopActionHook: `Building upon ${firstAuthor} et al. (${year})'s formulation, my proposed research bridges ${topKw1} with scalable experimental validation to advance ongoing departmental investigations.`,
+            relevanceScore: Math.min(78 + primaryMatched.length * 7, 96)
+        };
+    }
+
+    // AI Alignment Insights: Generates 3-bullet point summary of why paper aligns with CV keywords
+    app.post("/api/research-papers/alignment-insights", async (req: Request, res: Response) => {
+        try {
+            const { paper, cvKeywords = [], cvResearchFields = [], cvText = "" } = req.body;
+            if (!paper || !paper.title) {
+                return res.status(400).json({ error: "Paper details including a title are required." });
+            }
+
+            const rawKeywords: string[] = Array.isArray(cvKeywords) && cvKeywords.length > 0
+                ? cvKeywords
+                : (Array.isArray(cvResearchFields) && cvResearchFields.length > 0 ? cvResearchFields : []);
+
+            const fallbackResult = synthesizePaperAlignmentFallback(paper, rawKeywords);
+
+            const prompt = `You are a distinguished faculty advisor, Principal Investigator (PI), and graduate admissions evaluator at a top-tier global university.
+Your task is to analyze this specific research paper against the candidate's CV keywords and academic preparation, and generate EXACTLY a 3-bullet point summary explaining WHY and HOW this paper aligns with the candidate's CV keywords.
+
+=== CANDIDATE'S CV PROFILE ===
+CV Keywords: ${rawKeywords.length > 0 ? rawKeywords.join(", ") : "Machine Learning, Artificial Intelligence, Statistical Modeling, Algorithms"}
+Research Fields: ${cvResearchFields.length > 0 ? cvResearchFields.join(", ") : "STEM, Computer Science / Applied Sciences"}
+CV Background Excerpt:
+${cvText ? cvText.slice(0, 1500) : "Candidate with demonstrated technical coursework, research methodology, and empirical evaluation preparation."}
+
+=== RESEARCH PAPER DETAILS ===
+Title: "${paper.title}"
+Authors: ${(paper.authors || []).join(", ") || "Scholarly Authors"}
+Venue/Journal: "${paper.journalOrVenue || "Peer-reviewed venue"}"
+Year: ${paper.year || new Date().getFullYear()}
+Assigned Tags: ${(paper.tags || []).join(", ") || "General Literature"}
+Target University / Lab: "${paper.targetUniversity || "Target Graduate Institution"}"
+Target Professor: "${paper.targetProfessor || "Prospective PI"}"
+Abstract:
+"${paper.abstract ? paper.abstract.slice(0, 1800) : "No abstract provided; use paper title, authors, venue, and domain context."}"
+
+=== GENERATION INSTRUCTIONS ===
+1. Produce EXACTLY 3 substantive, intellectually rigorous bullet points.
+   - Bullet 1 (Domain & Problem Formulation Bridge): Pinpoint the exact theoretical concept or research question in the paper that maps to the candidate's CV keywords.
+   - Bullet 2 (Methodological & Technical Skill Synergy): Explain how the paper's experimental protocol, algorithms, mathematics, or tooling align with the candidate's hands-on proficiencies.
+   - Bullet 3 (Application & Statement of Purpose Impact): Articulate how the candidate can explicitly reference or extend this paper in their Statement of Purpose (SOP) or professor interview to demonstrate undeniable academic readiness.
+2. Select the top 2-4 matchedKeywords from the candidate's CV keywords that are directly vindicated by this paper.
+3. Formulate a concise bridgeTheme (1 sentence overarching connection).
+4. Provide a punchy sopActionHook (1-2 sentences ready to paste into an SOP or email to a professor).
+5. Provide a realistic relevanceScore (integer 65-98) reflecting the degree of alignment.
+
+Return a valid JSON object matching this schema:
+{
+  "bullets": [
+    "Core Topical & Conceptual Convergence: ...",
+    "Methodological & Technical Synergy: ...",
+    "Strategic Application & SOP Impact: ..."
+  ],
+  "matchedKeywords": ["Keyword 1", "Keyword 2"],
+  "bridgeTheme": "One sentence overarching bridge theme",
+  "sopActionHook": "Punchy 1-2 sentence hook for SOP or professor email",
+  "relevanceScore": 92
+}`;
+
+            try {
+                const response = await generateContentWithRetry({
+                    contents: prompt,
+                    config: {
+                        responseMimeType: "application/json",
+                        temperature: 0.4,
+                    },
+                });
+
+                if (response?.text) {
+                    const parsed = JSON.parse(response.text);
+                    if (Array.isArray(parsed.bullets) && parsed.bullets.length >= 3) {
+                        return res.json({
+                            bullets: parsed.bullets.slice(0, 3).map((b: string) => String(b).trim()),
+                            matchedKeywords: Array.isArray(parsed.matchedKeywords) && parsed.matchedKeywords.length > 0
+                                ? parsed.matchedKeywords
+                                : fallbackResult.matchedKeywords,
+                            bridgeTheme: parsed.bridgeTheme || fallbackResult.bridgeTheme,
+                            sopActionHook: parsed.sopActionHook || fallbackResult.sopActionHook,
+                            relevanceScore: typeof parsed.relevanceScore === 'number' ? parsed.relevanceScore : fallbackResult.relevanceScore,
+                            aiGenerated: true
+                        });
+                    }
+                }
+            } catch (aiErr: any) {
+                console.warn("Gemini alignment summary fallback engaged:", aiErr?.message || aiErr);
+            }
+
+            return res.json({
+                ...fallbackResult,
+                aiGenerated: false,
+                fallback: true
+            });
+        } catch (error: any) {
+            console.error("Error in /api/research-papers/alignment-insights:", error);
+            return res.status(500).json({ error: "Failed to generate paper alignment insights." });
+        }
+    });
+
     // Interview Simulation: Generate Tailored Questions Based on Lab/Program and Candidate Profile
     app.post("/api/generate-interview-questions", async (req: Request, res: Response) => {
         try {
