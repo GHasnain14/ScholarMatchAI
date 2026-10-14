@@ -2069,14 +2069,14 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search papers by title, author, topic, notes, venue, or university target..."
-                            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden text-slate-800 dark:text-slate-100"
+                            placeholder="Search papers by title, author, or specific assigned tags (e.g. #deep-learning)..."
+                            className="w-full pl-10 pr-14 py-2 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden text-slate-800 dark:text-slate-100"
                         />
                         {searchQuery && (
                             <button
                                 type="button"
                                 onClick={() => setSearchQuery('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                             >
                                 Clear
                             </button>
@@ -2098,6 +2098,34 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                         </select>
                     </div>
                 </div>
+
+                {/* Quick Tag Filter Pills (if any tags exist) */}
+                {allTags.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5 text-xs">
+                        <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-violet-500" />
+                            <span>Quick Tags:</span>
+                        </span>
+                        {allTags.map(tag => {
+                            const isSelected = selectedTag === tag;
+                            return (
+                                <button
+                                    key={tag}
+                                    type="button"
+                                    onClick={() => setSelectedTag(isSelected ? 'all' : tag)}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
+                                        isSelected
+                                            ? 'bg-violet-600 text-white font-semibold shadow-xs'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750'
+                                    }`}
+                                >
+                                    <span>#{tag}</span>
+                                    {isSelected && <X className="w-2.5 h-2.5" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
 
                 {/* Row 2: Status Tabs & Detailed Filters */}
                 <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -2142,6 +2170,26 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
 
                     {/* Secondary Dropdown Filters */}
                     <div className="flex items-center gap-2 flex-wrap text-xs">
+                        {/* Tag Filter Dropdown */}
+                        <div className="flex items-center gap-1">
+                            <Tag className={`w-3.5 h-3.5 ${selectedTag !== 'all' ? 'text-violet-600 dark:text-violet-400' : 'text-slate-400'}`} />
+                            <select
+                                value={selectedTag}
+                                onChange={(e) => setSelectedTag(e.target.value)}
+                                className={`px-2.5 py-1.5 text-xs rounded-xl border max-w-[160px] truncate cursor-pointer transition-colors ${
+                                    selectedTag !== 'all'
+                                        ? 'bg-violet-50 dark:bg-violet-950/50 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 font-semibold'
+                                        : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                                }`}
+                                title="Filter papers by specific assigned tag"
+                            >
+                                <option value="all">{allTags.length > 0 ? 'All Assigned Tags' : 'Tags (None Assigned)'}</option>
+                                {allTags.map(t => (
+                                    <option key={t} value={t}>#{t}</option>
+                                ))}
+                            </select>
+                        </div>
+
                         {/* Priority Selector */}
                         <select
                             value={priorityFilter}
@@ -2168,20 +2216,6 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                             </select>
                         )}
 
-                        {/* Tag Selector */}
-                        {allTags.length > 0 && (
-                            <select
-                                value={selectedTag}
-                                onChange={(e) => setSelectedTag(e.target.value)}
-                                className="px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 max-w-[150px] truncate cursor-pointer"
-                            >
-                                <option value="all">All Tags</option>
-                                {allTags.map(t => (
-                                    <option key={t} value={t}>{t}</option>
-                                ))}
-                            </select>
-                        )}
-
                         {/* Reset Filters */}
                         {(statusFilter !== 'all' || priorityFilter !== 'all' || selectedTag !== 'all' || selectedUniversity !== 'all' || searchQuery) && (
                             <button
@@ -2193,7 +2227,7 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                                     setSelectedUniversity('all');
                                     setSearchQuery('');
                                 }}
-                                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-1 rounded-lg text-xs"
+                                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-1 rounded-lg text-xs cursor-pointer"
                             >
                                 <RotateCcw className="w-3.5 h-3.5" />
                                 <span>Reset</span>
@@ -2201,6 +2235,58 @@ export const ResearchPaperTracker: React.FC<ResearchPaperTrackerProps> = ({
                         )}
                     </div>
                 </div>
+
+                {/* Active Filters Summary Strip */}
+                {(statusFilter !== 'all' || priorityFilter !== 'all' || selectedTag !== 'all' || selectedUniversity !== 'all' || searchQuery.trim()) && (
+                    <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-slate-100 dark:border-slate-800/80 text-xs">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] font-semibold text-slate-500">Active Filters:</span>
+                            {searchQuery.trim() && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    <span>Query: "{searchQuery}"</span>
+                                    <button type="button" onClick={() => setSearchQuery('')} className="hover:text-blue-900 cursor-pointer">
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                </span>
+                            )}
+                            {selectedTag !== 'all' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-violet-50 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 font-semibold">
+                                    <span>#{selectedTag}</span>
+                                    <button type="button" onClick={() => setSelectedTag('all')} className="hover:text-violet-900 cursor-pointer">
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                </span>
+                            )}
+                            {statusFilter !== 'all' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                    <span>Status: {statusFilter}</span>
+                                    <button type="button" onClick={() => setStatusFilter('all')} className="hover:text-slate-900 cursor-pointer">
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                </span>
+                            )}
+                            {priorityFilter !== 'all' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                    <span>Priority: {priorityFilter}</span>
+                                    <button type="button" onClick={() => setPriorityFilter('all')} className="hover:text-amber-900 cursor-pointer">
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                </span>
+                            )}
+                            {selectedUniversity !== 'all' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                    <span>University: {selectedUniversity}</span>
+                                    <button type="button" onClick={() => setSelectedUniversity('all')} className="hover:text-indigo-900 cursor-pointer">
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-[11px] font-mono text-slate-500">
+                            Showing {filteredPapers.length} of {papers.length} {papers.length === 1 ? 'paper' : 'papers'}
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* Papers List */}
